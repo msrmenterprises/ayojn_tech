@@ -83,6 +83,12 @@ No feature is considered optional solely because its dependency is old or diffic
 - The requested **80% whole-application line-coverage target is not met**. Most partner, admin, account, payment, and integration paths remain uncovered; live external side effects have not been exercised.
 - Regression tests exposed existing failures: unverified-account rejection cleared the user guard but left the shared web guard authenticated; partner-offer validation accessed validator errors incorrectly and returned HTTP 500; duplicate opportunity vouching incremented the free-vouch count and cleared the paid flag; admin and user bid payment used invalid state assignments; partner wallet payment referenced an undefined bid ID; partner payment gateway errors were not handled and could leave active unpaid offers; direct-payment initiation executed the gateway request twice and emitted debug output; user bid negotiation allowed invalid state transitions; the dashboard map passed an undefined variable to `compact()`, causing HTTP 500; the admin suspension endpoint returned a misspelled status field; and imported users were saved without valid membership-tier and verified-email values. These paths are fixed and covered by tests.
 
+### Owner decision on coverage (2026-10-17)
+
+- Pause work whose primary purpose is raising whole-application coverage to 80%; revisit this target later.
+- This is a deferral, not a waiver or completion: retain the 80% target and the current baseline of **151 tests, 705 assertions, and 32.34% line coverage (2,518/7,786 executable lines)**. Keep the configured `app/` source set unchanged.
+- Continue running the full test suite after code changes and add focused regression tests for changed security-, payment-, authorization-, and data-sensitive behavior. Coverage expansion remains an open gate and must not be described as passed.
+
 ### Test scope
 
 1. Authentication and authorization for each of the four account types: valid/invalid credentials, MFA valid/invalid, session persistence, logout, password reset, and access to role-protected routes.
@@ -94,11 +100,11 @@ No feature is considered optional solely because its dependency is old or diffic
 ### Coverage approach
 
 - Keep the source set and denominator stable; the target is at least **80% whole-application line coverage** for `app/`, not a narrowed subset.
-- Run the full suite against the isolated test database and retain a line-coverage report at each checkpoint. Do not claim the target until the suite passes and the same configured source set reports at least 80%.
+- Run the full suite against the isolated test database after code changes. Refresh the line-coverage report when coverage work resumes and at framework-upgrade milestones. Do not claim the target until the suite passes and the same configured source set reports at least 80%.
 - Add tests by workflow, prioritizing decision paths for authentication, authorization, payments, data changes, and the remaining user/partner/admin features. Use synthetic fixtures, fakes, and sandbox integrations; never copy production rows into test fixtures.
 - Upgrade PHPUnit and the coverage driver together with the framework/PHP target; keep the same critical test cases running after each upgrade step.
 
-**Gate:** A repeatable suite passes against the isolated database, and the stable whole-application source set reaches at least 80% line coverage. The baseline suite passes, but this coverage gate remains open.
+**Gate:** A repeatable suite passes against the isolated database, and the stable whole-application source set reaches at least 80% line coverage. The baseline suite passes, but this coverage gate remains open and is deferred by the owner as of 2026-10-17.
 
 ## Phase 3: Remove authentication and deployment blockers
 
@@ -155,11 +161,11 @@ No feature is considered optional solely because its dependency is old or diffic
 
 ## Immediate next actions
 
-1. Confirm the modified session file is excluded from the upgrade commit; do not stage its contents.
-2. Inventory all current features and direct Composer dependencies.
-3. Continue expanding database-backed regression coverage through remaining Admin, user payment, and account/dashboard workflows; admin user import/export/status/profile/beneficiary/bank-detail workflows and Partner offer-payment paths are covered. Keep the `app/` coverage denominator unchanged and reach at least 80% line coverage.
-4. Set up local PHP 8.5 and begin the Laravel 13 compatibility work only after the baseline is recorded.
-5. Review and fix MFA/session handling and Composer advisories before public staging.
+1. Keep the 80% coverage target deferred, not passed; run the full PHPUnit suite and focused regression tests for changed code while coverage expansion is paused.
+2. Address the Phase 3 authentication blockers: remove fixed MFA bypasses and replace partner plaintext-password session handling with a short-lived challenge flow. Add focused tests for invalid, replayed, and expired MFA challenges.
+3. Verify production mail/MFA configuration and review critical/high Composer advisories package by package; document fixes or approved risks.
+4. Finish and obtain approval for the workflow inventory, including unresolved guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
+5. After the Phase 3 and inventory decisions are recorded, prepare PHP 8.5 locally and begin the Laravel upgrade one major version at a time. Preserve the current tested baseline for comparison.
 
 ## Explicitly out of scope until approved
 
