@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit backupGlobals="false"
          backupStaticAttributes="false"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          convertErrorsToExceptions="true"
          convertNoticesToExceptions="true"
@@ -20,10 +20,22 @@
     <filter>
         <whitelist processUncoveredFilesFromWhitelist="true">
             <directory suffix=".php">./app</directory>
+            <exclude>
+                <file>./app/Http/Controllers/ControlpanelAuth/BidController_bk_24_6.php</file>
+                <file>./app/Http/Controllers/ControlpanelAuth/BidController_bk_5_8_23.php</file>
+                <file>./app/Http/Controllers/ControlpanelAuth/PartnerController_bk_15922.php</file>
+                <file>./app/Http/Controllers/UserAuth/BidController_bk_24_6_23.php</file>
+                <file>./app/Http/Controllers/UserAuth/EventController_bk_2020.php</file>
+                <file>./app/Http/Controllers/UserAuth/LoginController_bk_220325.php</file>
+                <file>./app/Http/Controllers/UserAuth/RegisterController_bk_2022.php</file>
+                <file>./app/Http/Controllers/UserAuth/userController_bk_2022.php</file>
+                <file>./app/Http/Controllers/UserAuth/userController_old.php</file>
+            </exclude>
         </whitelist>
     </filter>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="TEST_DB_DATABASE" value="u419449319_ayojn_test_20261017_0858"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
