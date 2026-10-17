@@ -6,6 +6,7 @@ use App\Bid;
 use App\Helpers\CommonHelper;
 use App\Http\Controllers\Controller;
 use App\RedeemRequest;
+use App\ResponseBid;
 use App\Traits\ApiResponse;
 use App\User;
 use App\VouchCode;
@@ -512,13 +513,18 @@ class BidController extends Controller
 
     public function payNow(Request $request)
     {
-       
+        $bidId = $request->input('bidId');
+        if (empty($bidId)) {
+            return response()->json(['status' => false, 'message' => 'Response id is required.'], 422);
+        }
 
-        $bids = \App\ResponseBid::with(['bid', 'userDetail', 'userDetail.country_name'])->where('id', $bidId)->first();
-            if ($bids->is_accepted = 3) {
-                $bids->is_accepted = 4;
-                $bids->save();
-            }
+        $responseBid = ResponseBid::findOrFail($bidId);
+        if ($responseBid->is_accepted != 3) {
+            return response()->json(['status' => false, 'message' => 'Only booked responses can be marked paid.'], 422);
+        }
+
+        $responseBid->is_accepted = 4;
+        $responseBid->save();
 
         return response()->json($bidId);
     }
@@ -547,7 +553,7 @@ class BidController extends Controller
             $user->admin_status = 0;
             $user->save();
 
-            return json_encode(['status' => $user->userstatus, 'msg' => trans("Bid status has been updated successfully"), 'user_id' => $request->user_id]);
+            return json_encode(['status' => $user->admin_status, 'msg' => trans("Bid status has been updated successfully"), 'user_id' => $request->user_id]);
         } else {
             $user->admin_status = 1;
             $user->save();

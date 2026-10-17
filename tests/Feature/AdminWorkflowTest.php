@@ -39,6 +39,7 @@ class AdminWorkflowTest extends TestCase
             '/controlpanel/codes',
             '/controlpanel/redeem-request',
             '/controlpanel/vouch-create',
+            '/controlpanel/vouchlist/999999',
         ] as $path) {
             $this->get($path)->assertStatus(200);
         }
@@ -54,12 +55,104 @@ class AdminWorkflowTest extends TestCase
         foreach ([
             '/controlpanel/list-bid',
             '/controlpanel/list-opportunity',
+            '/controlpanel/list-vouch/999999',
             '/controlpanel/review-list-data',
         ] as $path) {
             $this->postJson($path, [])
                 ->assertStatus(200)
                 ->assertJsonStructure(['data']);
         }
+    }
+
+    public function test_controlpanel_admin_can_toggle_and_delete_an_opportunity()
+    {
+        $admin = User::findOrFail($this->createUser('admin-opportunity-status@example.test', 0, '000000', [
+            'role_id' => 1,
+        ]));
+        $receiver = User::findOrFail($this->createUser('admin-opportunity-owner@example.test', 2));
+        $opportunityId = DB::table('opportunities')->insertGetId([
+            'receiver_id' => $receiver->id,
+            'hashtag' => '#admin-status-test',
+            'country_code' => 'ZZ',
+            'industry_id' => 999,
+            'status' => 1,
+        ]);
+
+        $this->actingAs($admin, 'controlpanel');
+        $deactivate = $this->post('/controlpanel/opportunity-change-status', [
+            'opportunityId' => $opportunityId,
+        ]);
+        $this->assertSame(0, json_decode($deactivate->getContent(), true)['status']);
+        $this->assertDatabaseHas('opportunities', [
+            'id' => $opportunityId,
+            'status' => 0,
+        ]);
+
+        $activate = $this->post('/controlpanel/opportunity-change-status', [
+            'opportunityId' => $opportunityId,
+        ]);
+        $this->assertSame(1, json_decode($activate->getContent(), true)['status']);
+
+        $deleted = $this->postJson('/controlpanel/delete-opportunity', ['user_id' => $opportunityId]);
+        $deleted->assertJson([
+            'bid_id' => $opportunityId,
+            'msg' => 'Opportunity has been deleted successfully',
+        ]);
+        $this->assertNotNull(DB::table('opportunities')->where('id', $opportunityId)->value('deleted_at'));
+    }
+
+    public function test_controlpanel_admin_can_review_opportunity_flag_activity()
+    {
+        $admin = User::findOrFail($this->createUser('admin-opportunity-flags@example.test', 0, '000000', [
+            'role_id' => 1,
+        ]));
+        $flaggedUser = User::findOrFail($this->createUser('flagged-opportunity-user@example.test', 2));
+        $opportunityId = DB::table('opportunities')->insertGetId([
+            'receiver_id' => $flaggedUser->id,
+            'hashtag' => '#admin-flag-test',
+            'country_code' => 'ZZ',
+            'industry_id' => 999,
+            'status' => 1,
+        ]);
+        $this->actingAs($admin, 'controlpanel');
+
+        $this->postJson('/controlpanel/flags-activity-admin-opportunity', ['id' => $opportunityId])
+            ->assertJson([
+                'status' => false,
+                'msg' => 'Flag activity not found',
+            ]);
+
+        DB::table('flag_activity')->insert([
+            'user_id' => $flaggedUser->id,
+            'reference_id' => $opportunityId,
+            'flag_type' => 'opportunities',
+            'reason' => 'Synthetic review reason',
+            'created_at' => '2026-01-01 00:00:00',
+        ]);
+
+        $this->postJson('/controlpanel/flags-activity-admin-opportunity', ['id' => $opportunityId])
+            ->assertJson([
+                'status' => true,
+                'msg' => 'Flag activity found',
+            ])
+            ->assertSee('Synthetic review reason')
+            ->assertSee('flagged-opportunity-user@example.test');
+    }
+
+    public function test_controlpanel_admin_can_request_opportunity_transactions()
+    {
+        $admin = User::findOrFail($this->createUser('admin-opportunity-transactions@example.test', 0, '000000', [
+            'role_id' => 1,
+        ]));
+        $this->actingAs($admin, 'controlpanel');
+
+        $response = $this->post('/controlpanel/opportunity-transaction', [
+            'id' => 987654,
+            'user_id' => 987654,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertSame('', $response->getContent());
     }
 
     public function test_controlpanel_admin_can_create_voucher_codes_and_duplicate_codes_are_rejected()

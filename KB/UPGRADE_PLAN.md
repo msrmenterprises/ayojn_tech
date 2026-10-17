@@ -78,10 +78,10 @@ No feature is considered optional solely because its dependency is old or diffic
 - Runtime: PHP 7.4.33, Laravel 5.6.40, and PHPUnit 7.5.20. PHPUnit uses the isolated MySQL test database and refuses to proceed unless the configured database name contains `_test_`.
 - The test database contains the 59-table legacy schema only; source rows were not copied. Synthetic button/configuration rows support page rendering, and feature tests create their own user fixtures inside database transactions.
 - `phpunit.xml` scopes coverage to `app/` and excludes nine non-runtime backup PHP files that redeclare active classes.
-- The full suite passes: **73 tests, 288 assertions**. Coverage includes authentication/MFA/logout/reset, user profile and onboarding, offer/receive marketplace and bid responses, wallet/history/query/feedback/cancellation, notification preferences, opportunity/vouch workflows, events and collaborations, partner offers/profile/order status, and admin pages/voucher management.
-- PHP 7.4's `phpdbg` is the working coverage driver; neither Xdebug nor PCOV is loaded. The full-suite line-coverage report is **12.75% (983/7,709 executable lines)**, up from the original 1.40% baseline. Classes are 7.69% and methods 15.55%.
+- On the `test-coverage-80` branch, the current full-suite checkpoint passes: **125 tests, 536 assertions**. Coverage includes authentication/MFA/logout/reset, user profile and onboarding, offer/receive marketplace and bid responses, wallet voucher redemption/bank details/history/query/feedback/cancellation, referral and notification workflows, opportunity reservation/vouch/renewal/payment workflows, events and collaborations, partner offer/profile/order workflows, admin profile/password/redemption/bid/voucher/review workflows, user bid creation/response/voucher activation/payment states, marketplace cart/wishlist/checkout, and dashboard map data.
+- PHP 7.4's `phpdbg` is the working coverage driver; neither Xdebug nor PCOV is loaded. The current full-suite line-coverage report is **26.99% (2,089/7,741 executable lines)**, up from the original 1.40% baseline. Classes are 10.26% and methods are 21.69%. Current coverage for the larger workflow controllers is `UserAuth\userController` 52.12% (541/1,038 lines), `UserAuth\BidController` 48.82% (372/762), `ControlpanelAuth\UserController` 41.88% (98/234), `ControlpanelAuth\BidController` 62.74% (165/263), and `Partner\UserController` 39.03% (137/351).
 - The requested **80% whole-application line-coverage target is not met**. Most partner, admin, account, payment, and integration paths remain uncovered; external side effects have not been exercised.
-- Regression tests exposed two existing failures: unverified-account rejection cleared the user guard but left the shared web guard authenticated, and partner-offer validation accessed validator errors incorrectly and returned HTTP 500. Both paths are fixed and covered by tests.
+- Regression tests exposed existing failures: unverified-account rejection cleared the user guard but left the shared web guard authenticated; partner-offer validation accessed validator errors incorrectly and returned HTTP 500; duplicate opportunity vouching incremented the free-vouch count and cleared the paid flag; admin and user bid payment used invalid state assignments; user bid negotiation allowed invalid state transitions; and the dashboard map passed an undefined variable to `compact()`, causing HTTP 500. These paths are fixed and covered by tests.
 
 ### Test scope
 
@@ -157,7 +157,7 @@ No feature is considered optional solely because its dependency is old or diffic
 
 1. Confirm the modified session file is excluded from the upgrade commit; do not stage its contents.
 2. Inventory all current features and direct Composer dependencies.
-3. Continue expanding database-backed regression coverage through Partner/Admin, profile, payments, and remaining marketplace workflows; use the unchanged `app/` coverage denominator and reach at least 80% line coverage.
+3. Continue expanding database-backed regression coverage through remaining Admin user/import/export, Partner payment, user payment, and account/dashboard workflows; use the unchanged `app/` coverage denominator and reach at least 80% line coverage.
 4. Set up local PHP 8.5 and begin the Laravel 13 compatibility work only after the baseline is recorded.
 5. Review and fix MFA/session handling and Composer advisories before public staging.
 

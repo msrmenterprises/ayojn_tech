@@ -862,7 +862,7 @@ class userController extends Controller
             ->where('country', $country_code)->where('userstatus', 1)->get()->count();
         $finalArray['OtherUserPer'] = $otherUser * 100 / 1000;
 
-        $view = view('mappopup', compact('userData', 'finalArray', 'contry_userData', 'sponsor_type', 'eventTotalUsers',
+        $view = view('mappopup', compact('userData', 'finalArray', 'sponsor_type', 'eventTotalUsers',
             'campaignTotalUsers', 'contentTotalUsers', 'SportsTotalUsers', 'OtherTotalUsers', 'VenueTotalUsers',
             'ProfitTotalUsers'))->render();
 
