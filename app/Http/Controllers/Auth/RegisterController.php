@@ -66,7 +66,7 @@ class RegisterController extends Controller
         return Validator::make($data, [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:8|confirmed',
         ]);
     }
 
@@ -95,7 +95,7 @@ class RegisterController extends Controller
             'contact_person' => 'required',
             'partner_phone_no' => 'required',
             'partner_email' => 'required|unique:users,email',
-            'partner_password' => 'required|min:6',
+            'partner_password' => 'required|min:8',
             'p_mother_name' => 'required',
         ];
         $messsages = [
@@ -105,7 +105,7 @@ class RegisterController extends Controller
             'partner_email.unique' => 'Email is Used. Try Another',
             'partner_phone_no.required' => 'Enter a Mobile no.',
             'partner_password.required' => 'Enter a Password.',
-            'partner_password.min' => 'Enter a Combination of at least Six Character.',
+            'partner_password.min' => 'Enter a password with at least eight characters.',
             'p_mother_name.required' => 'Enter a mother name',
         ];
         $validator = Validator::make($request->all(), $rules, $messsages);
