@@ -59,7 +59,7 @@ class RegisterController extends Controller
         return Validator::make($data, [
             'name' => 'required|max:255',
             'email' => 'required|email|max:255|unique:users',
-            'password' => 'required|confirmed',
+            'password' => 'required|min:8|confirmed',
         ]);
     }
 
@@ -107,7 +107,7 @@ class RegisterController extends Controller
             'username' => 'required|unique:users,username',
             'phone_no' => 'required',
             'email' => 'required',
-            'password' => 'required',
+            'password' => 'required|min:8',
             'country' => 'required',
             'city' => 'required',
             'sq1' => 'required',
@@ -119,7 +119,7 @@ class RegisterController extends Controller
             'email.unique' => 'Email is Used. Try Another',
             'phone_no.required' => 'Enter a Mobile no.',
             'password.required' => 'Enter a Password.',
-            'password.min' => 'Enter a Combination of at least Six Character.',
+            'password.min' => 'Enter a password with at least eight characters.',
             'country.required' => 'Please select country.',
             'city.required' => 'Please select city.',
             'sql.required' => 'Please enter your mother maiden name.',
@@ -140,6 +140,11 @@ class RegisterController extends Controller
         if(!empty($mobilexist)) {
             return $this->failResponse("You are already registered with this Mobile No.!")->setStatusCode(200);
         } else {
+            $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+            if (! $defaultUserType) {
+                return $this->failResponse("No user type is configured for new users.")->setStatusCode(200);
+            }
+
             $emailVerificationCode = $this->createRandomPassword(45);
 
             $user = new User();
@@ -147,6 +152,7 @@ class RegisterController extends Controller
             $user->entity = $request->get('entity');
             $user->username = $request->get('username');
             $user->password = Hash::make($request->get('password'));
+            $user->user_type = $defaultUserType;
             $user->sponsor_type = $request->get('sponsor_type');
             $user->country = $request->get('country');
             $user->phone_no = $request->get('phone_no');
@@ -295,7 +301,7 @@ class RegisterController extends Controller
     {
         $rules = [
             'email' => 'required|email',
-            'password' => 'required',
+            'password' => 'required|min:8',
             'country' => 'required',
             'sponsor_type' => 'required',
 
@@ -304,7 +310,7 @@ class RegisterController extends Controller
             'email.required' => 'Enter an Email.',
             'email.unique' => 'Email is Used. Try Another',
             'password.required' => 'Enter a Password.',
-            'password.min' => 'Enter a Combination of at least Six Character.',
+            'password.min' => 'Enter a password with at least eight characters.',
             'country.required' => 'Please select country.',
         ];
         $validator = Validator::make($request->all(), $rules, $messsages);
@@ -326,10 +332,16 @@ class RegisterController extends Controller
                 $response = $user->save();
             }
         } else {
+            $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+            if (! $defaultUserType) {
+                return $this->failResponse("No user type is configured for new users.")->setStatusCode(200);
+            }
+
             $user = new User();
             $user->name = 'test';
             $user->email = $request->get('email');
             $user->password = Hash::make($request->get('password'));
+            $user->user_type = $defaultUserType;
             $user->country = $request->get('country');
             $user->entity = $request->get('entity');
             $user->sponsor_type = $request->get('sponsor_type');
