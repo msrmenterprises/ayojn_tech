@@ -25,7 +25,17 @@ define('LARAVEL_START', microtime(true));
 |
 */
 
-require __DIR__ . '/../vendor/autoload.php';
+$applicationRoot = dirname(__DIR__);
+$privateApplicationRoot = $applicationRoot . DIRECTORY_SEPARATOR . 'laravel_app';
+
+if (
+    is_file($privateApplicationRoot . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php')
+    && is_file($privateApplicationRoot . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'app.php')
+) {
+    $applicationRoot = $privateApplicationRoot;
+}
+
+require $applicationRoot . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -39,7 +49,7 @@ require __DIR__ . '/../vendor/autoload.php';
 |
 */
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+$app = require_once $applicationRoot . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'app.php';
 
 /*
 |--------------------------------------------------------------------------

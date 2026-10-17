@@ -30,6 +30,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        $publicPath = config('app.public_path');
+
+        if ($publicPath !== null && $publicPath !== '') {
+            $resolvedPublicPath = realpath($publicPath);
+
+            if ($resolvedPublicPath === false || !is_dir($resolvedPublicPath)) {
+                throw new \InvalidArgumentException('APP_PUBLIC_PATH must point to an existing directory.');
+            }
+
+            $this->app->instance('path.public', $resolvedPublicPath);
+        }
+
         $this->app->singleton('app.view_db_buttons', function () {
             $details = DB::table('buttons_setting')->get();
             $homePageButtons = [];
