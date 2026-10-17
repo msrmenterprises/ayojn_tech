@@ -179,6 +179,8 @@ No feature is considered optional solely because its dependency is old or diffic
 
 **Temporary Hostinger SSH deployment (branch `hostinger-ssh-webroot`):** Hostinger's Git deployment UI only targets `public_html` or a subfolder, so do not use that UI to deploy the full Laravel repository. With SSH, keep the repository in a sibling private directory named `laravel_app` and copy only the contents of `laravel_app/public/` into `public_html/`. Keep `.env`, `vendor/`, `storage/`, and all application source outside `public_html`. The public entry point detects the sibling `laravel_app`; set `APP_PUBLIC_PATH` in the private `.env` to the absolute, existing `public_html` path so uploads and Laravel storage links resolve to the web root. Back up the current files and database before deployment, move the old web-root contents out of `public_html`, and verify the new web root contains no application source or secrets. This is a temporary shared-hosting layout; the `public/.htaccess` rewrite rules and inaccessible private paths must be verified on Hostinger before opening the site.
 
+**Canonical URL:** The current Hostinger setup uses `https://oksbakers.com` without `www`. Set `APP_URL` in the private `.env` to this URL; `public/.htaccess` forces HTTPS without redirecting to the unconfigured `www` host.
+
 ## Phase 7: Production cutover and maintenance
 
 1. Schedule a maintenance window and take verified pre-deployment file/database backups.
