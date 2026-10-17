@@ -1,0 +1,11 @@
+package,required_constraint,locked_version,feature_area,target_compatible_version,replacement_candidate,test_required,decision,status_notes
+anhskohbo/no-captcha,^3.7,3.7.0,"Ticket/contact CAPTCHA","TBD","TBD","Submit ticket/contact form with valid and invalid CAPTCHA","Keep","Configured in config/services.php and TicketController validation rule"
+barryvdh/laravel-dompdf,^0.9.0,v0.9.0,"PDF invoice/receipt generation","TBD","TBD","Generate invoice and receipt PDFs for Offer/Receive workflows","Keep","Used via PDF facade in UserAuth/XsquareController"
+fideloper/proxy,^4.0,4.4.2,"Trusted proxy / request forwarding","TBD","TBD","Verify HTTPS/proxy headers and secure URL generation behind Hostinger proxy","Keep","Infrastructure/runtime safety dependency"
+hesto/multi-auth,^2.0,v2.0.0,"Offer/Receive/Partner/Admin auth structure","TBD","TBD","Login/logout + route protection across all four account types","Keep","Legacy auth package likely major-upgrade blocker candidate"
+jeroennoten/laravel-adminlte,^1.24,v1.27.2,"Admin panel layout/assets","TBD","TBD","Admin login, dashboard rendering, plugin assets, DataTables pages","Keep","Used in resources/views/vendor/adminlte"
+laravel/framework,5.6.*,v5.6.40,"Core application framework","13.x target","N/A","Full regression suite and smoke tests across all major flows","Keep","Primary framework upgrade path"
+laravel/tinker,^1.0,v1.0.10,"Developer tooling","TBD","TBD","Basic artisan tinker bootstraps under target runtime","Keep","Dev support utility"
+maatwebsite/excel,^3.1,3.1.19,"Spreadsheet import/export","TBD","TBD","Import in controlpanel + export in UserAuth flows with representative files","Keep","Used in ControlpanelAuth/UserController and UserAuth controllers"
+srmklive/paypal,^1.7,1.11.11,"PayPal payments","TBD","TBD","Sandbox checkout, callback, success/failure handling, idempotency","Keep","Used in PayController and PaypalController"
+yajra/laravel-datatables-oracle,^8.0,v8.13.7,"Server-side DataTables pages","TBD","TBD","Sorting/filtering/pagination API responses on admin lists","Keep","Configured in config/datatables.php and used by controllers"
