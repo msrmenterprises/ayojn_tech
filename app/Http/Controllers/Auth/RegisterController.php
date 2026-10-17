@@ -7,6 +7,7 @@ use App\User;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
@@ -119,6 +120,11 @@ class RegisterController extends Controller
             return redirect()->back()->withErrors('you are already registred with sponsorr');
 //            return $this->failResponse("you are already registred with sponsorr")->setStatusCode(200);
         } else {
+            $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+            if (! $defaultUserType) {
+                return redirect()->back()->withErrors('No user type is configured for new users.');
+            }
+
             $emailVerificationCode = $this->createRandomPassword(45);
 
             $user = new User();
@@ -128,6 +134,7 @@ class RegisterController extends Controller
             $user->HQ = $request->get('hq');
             $user->sq1 = $request->get('p_mother_name');
             $user->password = Hash::make($request->get('partner_password'));
+            $user->user_type = $defaultUserType;
             $user->sponsor_type = 3;
             $user->phone_no = $request->get('partner_phone_no');
             $user->email_verified = 0;

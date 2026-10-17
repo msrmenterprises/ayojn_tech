@@ -153,7 +153,7 @@ No feature is considered optional solely because its dependency is old or diffic
 - The PHP 8.5.11 lock check passes all required extensions but fails the PHP requirement because Laravel 5.8.38 still requires `^7.1.3`. Continue using PHP 7.4.33 for the app until a later framework version supports PHP 8.5.
 - `composer audit --locked --no-dev` now reports **77 advisories across 13 production packages** (7 critical, 23 high, 42 medium, 5 low); the advisory matrix records the current lock. Composer's `--no-blocking` was used only for the local dependency resolution because Carbon 1 remains advisory-flagged; no persistent bypass or risk acceptance was added.
 - Carbon remains at 1.39.1 to avoid combining the Carbon 2 migration with this Laravel step. Cache TTL/lock API searches found no application call sites requiring changes for the 5.8 cache behavior update.
-- A full successful user-signup smoke test remains open: the isolated test database hit a `users.user_type` foreign-key violation during persistence, before completion. The eight-character validation boundary is tested; registration reference-data behavior needs a separate fixture/workflow review and was not changed in this checkpoint.
+- **Follow-up complete in the working tree (2026-10-17):** the signup foreign-key failure was caused by active user, half-registration, and partner registration paths omitting `user_type`. They now assign the lowest configured user type, matching the existing admin-import behavior, and return an explicit error if none is configured. Regression tests cover successful creation and the assigned type across all three flows. The full suite now passes (**169 tests, 814 assertions**).
 
 ## Phase 5: Database compatibility
 

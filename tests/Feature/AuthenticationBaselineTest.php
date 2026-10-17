@@ -604,25 +604,32 @@ class AuthenticationBaselineTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => $email]);
     }
 
-    public function test_user_registration_accepts_eight_characters_at_the_validation_boundary()
+    public function test_user_registration_accepts_eight_character_passwords_with_default_user_type()
     {
+        $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+        $this->createUser('signup-reference-seed@example.test', 1);
+        $email = 'eight-character-registration@example.test';
+
         $response = $this->post('/register', [
             'entity' => 'Individual',
-            'username' => 'eight-character-boundary',
+            'username' => 'eight-character-registration',
             'phone_no' => '5550102',
-            'email' => 'eight-character-boundary@example.test',
+            'email' => $email,
             'password' => 'Eight888',
-            'country' => 'US',
+            'country' => 'ZZ',
+            'city' => 'Boston',
             'sq1' => 'answer',
+            'sponsor_type' => 1,
         ]);
 
         $response->assertStatus(200);
-        $response->assertJsonMissing([
-            'errors' => 'Enter a password with at least eight characters.',
+        $response->assertJsonFragment(['status' => true]);
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'user_type' => $defaultUserType,
         ]);
-        $this->assertDatabaseMissing('users', [
-            'email' => 'eight-character-boundary@example.test',
-        ]);
+        $storedPassword = DB::table('users')->where('email', $email)->value('password');
+        $this->assertTrue(Hash::check('Eight888', $storedPassword));
     }
 
     public function test_user_half_registration_rejects_passwords_shorter_than_eight_characters()
@@ -643,6 +650,27 @@ class AuthenticationBaselineTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => $email]);
     }
 
+    public function test_user_half_registration_assigns_default_user_type()
+    {
+        $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+        $this->createUser('half-signup-reference-seed@example.test', 1);
+        $email = 'eight-character-half-registration@example.test';
+
+        $response = $this->post('/half-register', [
+            'email' => $email,
+            'password' => 'Eight888',
+            'country' => 'ZZ',
+            'sponsor_type' => 1,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['status' => true]);
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'user_type' => $defaultUserType,
+        ]);
+    }
+
     public function test_partner_registration_rejects_passwords_shorter_than_eight_characters()
     {
         $email = 'short-partner-registration@example.test';
@@ -659,6 +687,30 @@ class AuthenticationBaselineTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHasErrors();
         $this->assertDatabaseMissing('users', ['email' => $email]);
+    }
+
+    public function test_partner_registration_assigns_default_user_type()
+    {
+        $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+        $this->createUser('partner-signup-reference-seed@example.test', 1);
+        $email = 'eight-character-partner-registration@example.test';
+
+        $response = $this->post('/partner/register', [
+            'company_name' => 'Example Partner',
+            'contact_person' => 'Example Contact',
+            'partner_phone_no' => '5550103',
+            'partner_email' => $email,
+            'partner_password' => 'Eight888',
+            'p_mother_name' => 'Example',
+        ]);
+
+        $response->assertRedirect('/partner-pending');
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'user_type' => $defaultUserType,
+        ]);
+        $storedPassword = DB::table('users')->where('email', $email)->value('password');
+        $this->assertTrue(Hash::check('Eight888', $storedPassword));
     }
 
     public function test_user_password_reset_rejects_passwords_shorter_than_eight_characters()

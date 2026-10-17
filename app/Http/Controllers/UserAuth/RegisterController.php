@@ -140,6 +140,11 @@ class RegisterController extends Controller
         if(!empty($mobilexist)) {
             return $this->failResponse("You are already registered with this Mobile No.!")->setStatusCode(200);
         } else {
+            $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+            if (! $defaultUserType) {
+                return $this->failResponse("No user type is configured for new users.")->setStatusCode(200);
+            }
+
             $emailVerificationCode = $this->createRandomPassword(45);
 
             $user = new User();
@@ -147,6 +152,7 @@ class RegisterController extends Controller
             $user->entity = $request->get('entity');
             $user->username = $request->get('username');
             $user->password = Hash::make($request->get('password'));
+            $user->user_type = $defaultUserType;
             $user->sponsor_type = $request->get('sponsor_type');
             $user->country = $request->get('country');
             $user->phone_no = $request->get('phone_no');
@@ -326,10 +332,16 @@ class RegisterController extends Controller
                 $response = $user->save();
             }
         } else {
+            $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+            if (! $defaultUserType) {
+                return $this->failResponse("No user type is configured for new users.")->setStatusCode(200);
+            }
+
             $user = new User();
             $user->name = 'test';
             $user->email = $request->get('email');
             $user->password = Hash::make($request->get('password'));
+            $user->user_type = $defaultUserType;
             $user->country = $request->get('country');
             $user->entity = $request->get('entity');
             $user->sponsor_type = $request->get('sponsor_type');
