@@ -175,6 +175,8 @@ No feature is considered optional solely because its dependency is old or diffic
 
 **Gate:** Staging passes the test matrix, security review, and restore/rollback rehearsal before production cutover.
 
+**Hostinger manual test checkpoint (2026-10-17):** Hostinger fetched `main` at `b1b6e89` and completed file publishing to `public_html`. Composer's `post-autoload-dump` failed because `AppServiceProvider` queried `buttons_setting` during application bootstrap while the Hostinger database connection was denied; Hostinger retried with `--no-scripts`, so publishing did not verify that Laravel boots. The follow-up defers that query until a view needs it, allowing package discovery without a database connection. Hostinger's database host/credentials/permissions still need correction before application pages can work. Keep the project source outside the web root where possible; `public_html` should expose only Laravel's `public/` files.
+
 ## Phase 7: Production cutover and maintenance
 
 1. Schedule a maintenance window and take verified pre-deployment file/database backups.
