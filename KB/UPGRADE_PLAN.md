@@ -65,6 +65,8 @@ No feature is considered optional solely because its dependency is old or diffic
 
 **Current inventory status:** `KB/workflow_inventory.csv` has been expanded from the initial four authentication rows into a route/controller map of the principal public, account, marketplace, payment, partner, support, administrative, API, and scheduled workflows. This is not yet owner-approved or a complete schema trace: exact guard/role boundaries, legacy table mappings, deployment-level cron invocation, and several integration details remain marked for verification.
 
+**Source verification checkpoint (2026-10-17):** `RouteServiceProvider` loads `routes/web.php`, `routes/user.php`, `routes/controlpanel.php`, and `routes/api.php`; the 19 inventory rows group the currently mapped workflows. The active web routes expose `GET /clear-cache`, `GET /linkstorage`, `GET /cron`, and `ANY /cron/` under the `web` middleware without an authentication middleware. The scheduler registers `cron:active` every minute, `delete:old-cart-wishlist` daily, and `upgrade:user` twice daily; `/cron` invokes `cron:collaboration`, while `/cron/` invokes the daily bid-mail handler. Keep the operational endpoints blocked for owner review and do not change production access as part of this checkpoint. Host-level scheduler invocation, data effects, route access decisions, complete table mappings, and workflow approval remain open.
+
 ## Phase 2: Build a baseline regression suite and measure coverage
 
 ### Test environment
@@ -118,6 +120,13 @@ No feature is considered optional solely because its dependency is old or diffic
 
 **Gate:** Authentication has no fixed bypass or plaintext password session storage, and unresolved advisories have a documented, approved disposition before any public staging.
 
+### Phase 3 readiness review checkpoint (2026-10-17)
+
+- `composer audit --locked --no-dev` reports **80 advisories across 15 locked production packages**: 6 critical, 25 high, 43 medium, and 6 low. Package versions, direct/transitive status, severity counts, application touchpoints, and required upgrade/test follow-up are recorded in `KB/dependency_advisory_review.csv`.
+- Critical/high findings include the Dompdf/SVG rendering chain and PhpSpreadsheet import/export chain; additional findings affect Laravel 5.6 and its Symfony/Guzzle dependencies. The inventory identifies PDF generation, spreadsheet import/export, and agent API calls as application touchpoints requiring regression tests.
+- No dependency was changed in this readiness branch, no advisory was treated as an accepted risk, and no production migration or mail configuration was changed. Each finding remains open for remediation and verification during the staged framework/dependency upgrade before staging or production.
+- The audit command exits nonzero because advisories are present; this is an audit finding, not a passing security gate.
+
 ## Phase 4: Upgrade PHP and Laravel on `app_upgrade`
 
 1. Install/configure PHP 8.5 locally alongside PHP 7.4 so the old baseline can still be run when needed.
@@ -165,7 +174,7 @@ No feature is considered optional solely because its dependency is old or diffic
 
 1. Keep the 80% coverage target deferred, not passed; run the full PHPUnit suite and focused regression tests for changed code while coverage expansion is paused.
 2. **Complete:** Addressed the Phase 3 fixed-MFA and plaintext-password session blockers with short-lived challenges and focused authentication regression tests. Local schema and application regression checks pass; production mail/MFA verification remains outstanding.
-3. Before production validation, apply the additive migration through the approved deployment process and configure the production mail transport and admin-managed demo inbox/account list. Review critical/high Composer advisories package by package and document fixes or approved risks.
+3. Before production validation, apply the additive migration through the approved deployment process and configure the production mail transport and admin-managed demo inbox/account list. The critical/high Composer advisories have been inventoried package by package in `KB/dependency_advisory_review.csv`; remediation or explicit approved-risk decisions remain outstanding.
 4. Finish and obtain approval for the workflow inventory, including remaining guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
 5. After the Phase 3 and inventory decisions are recorded, prepare PHP 8.5 locally and begin the Laravel upgrade one major version at a time. Preserve the current tested baseline for comparison.
 
