@@ -1444,6 +1444,45 @@ class BidController extends Controller
                 $send_data = array('amount' => $amt);
                 $result = $this->sendRequest($send_data);
 
+                if (isset($result['error'])) {
+                    \Illuminate\Support\Facades\Log::error(
+                        'Payment gateway request failed while placing a receiver bid.',
+                        ['user_id' => $userid, 'bid_id' => $bidId, 'error' => $result['error']]
+                    );
+
+                    return response()->json([
+                        'flag' => 0,
+                        'message' => 'Payment service is unavailable. Please try again later.',
+                    ], 502);
+                }
+
+                $paymentDetails = isset($result['response']['details']) ? $result['response']['details'] : null;
+                if (
+                    ! isset($result['status']) ||
+                    $result['status'] < 200 ||
+                    $result['status'] >= 300 ||
+                    ! is_array($paymentDetails) ||
+                    ! isset(
+                        $paymentDetails['collection_id'],
+                        $paymentDetails['order_reference'],
+                        $paymentDetails['payment_url']
+                    )
+                ) {
+                    \Illuminate\Support\Facades\Log::error(
+                        'Payment gateway returned an invalid response while placing a receiver bid.',
+                        [
+                            'user_id' => $userid,
+                            'bid_id' => $bidId,
+                            'status' => isset($result['status']) ? $result['status'] : null,
+                        ]
+                    );
+
+                    return response()->json([
+                        'flag' => 0,
+                        'message' => 'Payment service returned an invalid response. Please try again later.',
+                    ], 502);
+                }
+
                 $percentage = CommonHelper::getConfig('pay_bid')['ayojn_service'];
                 $config_type = CommonHelper::getConfig('pay_bid')['config_type'];
                 $ayojanEarnings = CommonHelper::calculateAyojanEarning($config_type,0,$percentage);
@@ -1451,11 +1490,11 @@ class BidController extends Controller
                 $data = array(
                     'user_id'=> Auth::user()->id, 
                     'beneficiary_id' => 7,
-                    'collection_id'=> $result['response']['details']['collection_id'], 
+                    'collection_id'=> $paymentDetails['collection_id'], 
                     'purpose' => 1,
                     'amount'=> $amt,
                     'ayojn_earn' => $ayojanEarnings,
-                    'transaction_reference' => $result['response']['details']['order_reference'],
+                    'transaction_reference' => $paymentDetails['order_reference'],
                     'form_name' => 'pay_bid_rec',
                     'refrence_id' => $bidId,
                     'refrence_details' => json_encode(array('vouch_code'=>$voucher_code, 'wallet' => $wallet, 'bid_id' => $bidId, 'description'=>$description, 'portfolio' => $portfolio))
@@ -1484,7 +1523,7 @@ class BidController extends Controller
                     // echo "</div>";
                 }
             
-                $link = $result['response']['details']['payment_url'];
+                $link = $paymentDetails['payment_url'];
                 return array('flag'=>$flag, 'link' => $link);
                 
             }

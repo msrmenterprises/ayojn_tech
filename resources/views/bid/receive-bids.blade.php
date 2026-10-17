@@ -870,8 +870,12 @@
                         }
                         
                         },
-                        error: function () {
-                        alert("something went wrong!");
+                            error: function (xhr) {
+                            $(".loader ").hide();
+                            var message = xhr.responseJSON && xhr.responseJSON.message
+                                ? xhr.responseJSON.message
+                                : "Something went wrong. Please try again.";
+                            alert(message);
                         }
                     });
 

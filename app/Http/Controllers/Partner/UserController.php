@@ -320,7 +320,7 @@ class UserController extends Controller
         ];
         $validator = Validator::make($request->all(), $rules, $messsages);
         if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator->errors->first());
+            return redirect()->back()->withErrors($validator->errors()->first());
         }
         if ($request->refund == 0) {
             $refund = NULL;

@@ -75,12 +75,13 @@ No feature is considered optional solely because its dependency is old or diffic
 
 ### Baseline test and coverage status (2026-10-17)
 
-- Runtime: PHP 7.4.33; PHPUnit 7.5.20. No `.env.testing` file is present, and `phpunit.xml` does not set a database connection.
-- `tests/bootstrap.php` now creates a temporary SQLite database, sets the test connection before Laravel boots, and removes the file at shutdown. Its minimal fixture schema covers the observed startup/login-test dependencies (`buttons_setting`, `countries`, `industries`, and the credential lookup columns on `users`) without loading imported or production data.
-- An initial empty-schema run failed during boot/render because the application expects these tables. With the isolated fixtures in place, `vendor/bin/phpunit` passes: 5 tests, 8 assertions.
-- Current authentication coverage adds invalid-credential cases for the shared Offer/Receive login endpoint, Partner login, and Admin login. Valid credentials, MFA, logout, password reset, and role-specific protected-route behavior remain untested; the two original Laravel example tests are not business regression coverage.
-- Neither Xdebug nor PCOV is loaded in the PHP 7.4 CLI modules. A line-coverage report remains blocked until a compatible coverage driver is available.
-- Neither Xdebug nor PCOV is loaded in the PHP 7.4 CLI modules. A line-coverage report remains blocked until a compatible coverage driver is available.
+- Runtime: PHP 7.4.33, Laravel 5.6.40, and PHPUnit 7.5.20. PHPUnit uses the isolated MySQL test database and refuses to proceed unless the configured database name contains `_test_`.
+- The test database contains the 59-table legacy schema only; source rows were not copied. Synthetic button/configuration rows support page rendering, and feature tests create their own user fixtures inside database transactions.
+- `phpunit.xml` scopes coverage to `app/` and excludes nine non-runtime backup PHP files that redeclare active classes.
+- The full suite passes: **73 tests, 288 assertions**. Coverage includes authentication/MFA/logout/reset, user profile and onboarding, offer/receive marketplace and bid responses, wallet/history/query/feedback/cancellation, notification preferences, opportunity/vouch workflows, events and collaborations, partner offers/profile/order status, and admin pages/voucher management.
+- PHP 7.4's `phpdbg` is the working coverage driver; neither Xdebug nor PCOV is loaded. The full-suite line-coverage report is **12.75% (983/7,709 executable lines)**, up from the original 1.40% baseline. Classes are 7.69% and methods 15.55%.
+- The requested **80% whole-application line-coverage target is not met**. Most partner, admin, account, payment, and integration paths remain uncovered; external side effects have not been exercised.
+- Regression tests exposed two existing failures: unverified-account rejection cleared the user guard but left the shared web guard authenticated, and partner-offer validation accessed validator errors incorrectly and returned HTTP 500. Both paths are fixed and covered by tests.
 
 ### Test scope
 
@@ -92,13 +93,12 @@ No feature is considered optional solely because its dependency is old or diffic
 
 ### Coverage approach
 
-- First run the existing PHPUnit suite on the current local PHP 7.4 baseline and record failures before changing dependencies.
-- Verify a compatible coverage driver (Xdebug or PCOV) is available for the PHP version used by the test run. The current PHPUnit 7 setup has not yet had its coverage driver verified.
-- Generate a baseline line-coverage report before migration and retain the report with the upgrade checkpoint.
-- Do not set an arbitrary whole-application percentage before seeing the baseline. Require tests for all new/changed code and prioritize full decision-path coverage for authentication, authorization, payments, and data migrations. Set measurable per-area thresholds after the baseline is known, then prevent regressions at each checkpoint.
+- Keep the source set and denominator stable; the target is at least **80% whole-application line coverage** for `app/`, not a narrowed subset.
+- Run the full suite against the isolated test database and retain a line-coverage report at each checkpoint. Do not claim the target until the suite passes and the same configured source set reports at least 80%.
+- Add tests by workflow, prioritizing decision paths for authentication, authorization, payments, data changes, and the remaining user/partner/admin features. Use synthetic fixtures, fakes, and sandbox integrations; never copy production rows into test fixtures.
 - Upgrade PHPUnit and the coverage driver together with the framework/PHP target; keep the same critical test cases running after each upgrade step.
 
-**Gate:** A repeatable baseline suite runs against an isolated database, and its failures and coverage report are recorded.
+**Gate:** A repeatable suite passes against the isolated database, and the stable whole-application source set reaches at least 80% line coverage. The baseline suite passes, but this coverage gate remains open.
 
 ## Phase 3: Remove authentication and deployment blockers
 
@@ -157,7 +157,7 @@ No feature is considered optional solely because its dependency is old or diffic
 
 1. Confirm the modified session file is excluded from the upgrade commit; do not stage its contents.
 2. Inventory all current features and direct Composer dependencies.
-3. Expand the passing starter suite with valid-login/MFA, logout/reset, and role-specific route tests for all four account types. Establish line coverage after a compatible coverage driver is available.
+3. Continue expanding database-backed regression coverage through Partner/Admin, profile, payments, and remaining marketplace workflows; use the unchanged `app/` coverage denominator and reach at least 80% line coverage.
 4. Set up local PHP 8.5 and begin the Laravel 13 compatibility work only after the baseline is recorded.
 5. Review and fix MFA/session handling and Composer advisories before public staging.
 

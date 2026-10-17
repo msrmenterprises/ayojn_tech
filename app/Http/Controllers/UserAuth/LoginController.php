@@ -209,6 +209,7 @@ class LoginController extends Controller
                                 ]);
                             }
                             if (! empty(Auth::user()) && Auth::user()->email_verified == 0) {
+                                Auth::guard('web')->logout();
                                 $this->guard()->logout();
             
                                 $request->session()->invalidate();
