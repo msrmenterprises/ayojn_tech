@@ -584,26 +584,6 @@ class UserController extends Controller
         $orderresponse->save();
         if (!empty($orderresponse)) 
         {
-
-            $user = User::find(Auth::user()->id);
-            $user->free_response = $user->free_response + 1;
-            $user->save();
-
-            //notification add
-            $userDetails = User::find(Auth::user()->id);
-            $url = url('partner/home');
-            $linkName = '<a href="' . $url . '">Click here</a>';
-            $message = "Your offer successfully created, please " . $linkName . " to view the details.";
-            CommonHelper::sendNotification($userDetails, $message, $url);
-        
-            //email send
-            $smsdata = [
-                'to' => Auth::user()->email,
-                'subject' => "Offer Created",
-                'message' => $message,
-            ];
-            $send_mail = send_mail($smsdata);
-
             $wallet = $request->wallet;
 
             $userid = Auth::user()->id;
@@ -619,6 +599,53 @@ class UserController extends Controller
                 $send_data = array('amount' => $amt);
                 $result = $this->sendRequest($send_data);
 
+                if (isset($result['error'])) {
+                    \Illuminate\Support\Facades\Log::error(
+                        'Payment gateway request failed while creating a partner offer.',
+                        [
+                            'partner_id' => $userid,
+                            'offer_id' => $orderresponse->id,
+                            'error' => $result['error'],
+                        ]
+                    );
+                    $orderresponse->delete();
+
+                    return response()->json([
+                        'flag' => 0,
+                        'message' => 'Payment service is unavailable. Please try again later.',
+                    ], 502);
+                }
+
+                $paymentDetails = isset($result['response']['details'])
+                    ? $result['response']['details']
+                    : null;
+                if (
+                    ! isset($result['status']) ||
+                    $result['status'] < 200 ||
+                    $result['status'] >= 300 ||
+                    ! is_array($paymentDetails) ||
+                    ! isset(
+                        $paymentDetails['collection_id'],
+                        $paymentDetails['order_reference'],
+                        $paymentDetails['payment_url']
+                    )
+                ) {
+                    \Illuminate\Support\Facades\Log::error(
+                        'Payment gateway returned an invalid response while creating a partner offer.',
+                        [
+                            'partner_id' => $userid,
+                            'offer_id' => $orderresponse->id,
+                            'status' => isset($result['status']) ? $result['status'] : null,
+                        ]
+                    );
+                    $orderresponse->delete();
+
+                    return response()->json([
+                        'flag' => 0,
+                        'message' => 'Payment service returned an invalid response. Please try again later.',
+                    ], 502);
+                }
+
                  $percentage = CommonHelper::getConfig('partner_offer')['ayojn_service'];
                  $config_type = CommonHelper::getConfig('partner_offer')['config_type'];
                  $ayojanEarnings = CommonHelper::calculateAyojanEarning($config_type,0,$percentage);
@@ -626,11 +653,11 @@ class UserController extends Controller
                 $data = array(
                     'user_id'=> $userid, 
                     'beneficiary_id' => 7,
-                    'collection_id'=> $result['response']['details']['collection_id'], 
+                    'collection_id'=> $paymentDetails['collection_id'],
                     'purpose' => 1,
                     'amount'=> $amt,
                     'ayojn_earn' => $ayojanEarnings,
-                    'transaction_reference' => $result['response']['details']['order_reference'],
+                    'transaction_reference' => $paymentDetails['order_reference'],
                     'form_name' => 'partner_offer',
                     'refrence_id' => $orderresponse->id,
                     'refrence_details' => json_encode(array('vouch_code'=>$voucher_code, 'wallet' => $wallet, 'offer_id' => $orderresponse->id))
@@ -642,7 +669,7 @@ class UserController extends Controller
                 if($wallet > 0)
                 {
                     $walletupdate = DB::table('users')->where('id',$userid)->update(array('wallet_balance'=>DB::raw("wallet_balance - $wallet")));
-                    $insarray = array('user_id'=>$userid,'points_by'=>1,'trans_id'=>$bidId,'point'=>$wallet,'point_type'=>'DR','created_at'=>now());
+                    $insarray = array('user_id'=>$userid,'points_by'=>1,'trans_id'=>$orderresponse->id,'point'=>$wallet,'point_type'=>'DR','created_at'=>now());
                     DB::table('wallet_logs')->insert($insarray);
                     $flag =1;
                 }
@@ -653,13 +680,8 @@ class UserController extends Controller
                     $flag =1;
                 }
 
-                if (isset($result['error'])) {
-                    // echo "<div style='color:red'>";
-                    echo "Error: " . htmlspecialchars($result['error']);
-                    // echo "</div>";
-                }
-            
-                $link = $result['response']['details']['payment_url'];
+                $this->notifyPartnerOfferCreated($userid);
+                $link = $paymentDetails['payment_url'];
                 return array('flag'=>$flag, 'link' => $link);
                 
             }else{
@@ -686,11 +708,30 @@ class UserController extends Controller
                     }
                 }
 
+                $this->notifyPartnerOfferCreated($userid);
                 return array('flag'=>$flag, 'link' => "");
             }
 
         }
 
+    }
+
+    private function notifyPartnerOfferCreated($userId)
+    {
+        $user = User::findOrFail($userId);
+        $user->free_response = $user->free_response + 1;
+        $user->save();
+
+        $url = url('partner/home');
+        $linkName = '<a href="' . $url . '">Click here</a>';
+        $message = "Your offer successfully created, please " . $linkName . " to view the details.";
+        CommonHelper::sendNotification($user, $message, $url);
+
+        send_mail([
+            'to' => $user->email,
+            'subject' => 'Offer Created',
+            'message' => $message,
+        ]);
     }
 
 }

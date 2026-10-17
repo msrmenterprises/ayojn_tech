@@ -690,74 +690,16 @@ class XsquareController extends Controller
                 'User-Agent: MyCustomUserAgent/1.0'
             ]);
 
-        //     $response = curl_exec($ch);
-
-
-        //    if (curl_errno($ch)) {
-        //         rewind($verbose);
-        //         $verboseLog = stream_get_contents($verbose);
-
-
-        //         throw new Exception('cURL error: ' . curl_error($ch) . "\n" .
-        //                             'Error Number: ' . curl_errno($ch) . "\n" .
-        //                             'HTTP Code: ' . curl_getinfo($ch, CURLINFO_HTTP_CODE) . "\n" .
-        //                             'Verbose Info: ' . $verboseLog);
-        //     }
-        //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        //     curl_close($ch);
-
-
-    
-
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-            if (curl_errno($ch)) {
-                $errorMsg = curl_error($ch);
-                // Print detailed debug info
-                echo "<pre>";
-                echo "cURL Error: $errorMsg\n";
-                echo "Endpoint: " . $this->apiConfig['ENDPOINT'] . "\n";
-                echo "Payload: " . json_encode($data_array, JSON_PRETTY_PRINT) . "\n";
-                echo "HTTP Code: $httpCode\n";
-                echo "Response: " . htmlspecialchars($response) . "\n";
-                echo "</pre>";
+            if ($response === false) {
+                $error = curl_error($ch);
                 curl_close($ch);
-            }
-            var_dump($this->apiConfig['ENDPOINT'])."<br/><br/>";
 
-
-
-
-        //         throw new Exception('cURL error: ' . curl_error($ch) . "\n" .
-        //                             'Error Number: ' . curl_errno($ch) . "\n" .
-        //                             'HTTP Code: ' . curl_getinfo($ch, CURLINFO_HTTP_CODE) . "\n" .
-        //                             'Verbose Info: ' . $verboseLog);
-        //     }
-        //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        //     curl_close($ch);
-
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-            if (curl_errno($ch)) {
-                $errorMsg = curl_error($ch);
-                // Print detailed debug info
-                echo "<pre>";
-                echo "cURL Error: $errorMsg\n";
-                echo "Endpoint: " . $this->apiConfig['ENDPOINT'] . "\n";
-                echo "Payload: " . json_encode($data_array, JSON_PRETTY_PRINT) . "\n";
-                echo "HTTP Code: $httpCode\n";
-                echo "Response: " . htmlspecialchars($response) . "\n";
-                echo "</pre>";
-                curl_close($ch);
+                return ['error' => $error ?: 'Unable to connect to the payment gateway.'];
             }
 
-
-           // print_r($response); 
+            curl_close($ch);
 
             return [
                 'status' => $httpCode,
@@ -774,81 +716,82 @@ class XsquareController extends Controller
     }
 
 
-    public function run(Request $request) {
-      
+    public function run(Request $request)
+    {
+        $receipt = $request->file('receipt');
+        if ($receipt) {
+            $validator = Validator::make($request->all(), [
+                'receipt' => 'required|mimes:jpg,png,pdf',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors($validator);
+            }
+        }
+
         $result = $this->sendRequest($request->post());
-        
-        if (isset($result['error'])) {
-           // echo "<div style='color:red'>";
-            echo "Error: " . htmlspecialchars($result['error']);
-           // echo "</div>";
-        } else {
-
-
-            if($request->file('receipt'))
-            {
-                              
-                $validator = Validator::make($request->all(),[
-                    'receipt' => 'required|mimes:jpg,png,pdf',
-                ]);
-
-                if ($validator->fails()) {
-                    return redirect()->back()->withErrors($validator);
-                }
-
-                // $image = $request->file('receipt');
-                // $profile_image = time() . '.' . $image->getClientOriginalExtension();
-                // $destinationPath = public_path('/public_html/receipt');
-                // $newdestination = preg_replace('/\bpublic\b/','',$destinationPath); 
-                // $chk = $image->move($newdestination, $profile_image);
-
-                $image = $request->file('receipt');
-                $profile_image = time() . '.' . $image->getClientOriginalExtension();
-
-                // Define the destination path inside the 'public' directory
-                $destinationPath = public_path('receipt');
-
-                // Make sure the directory exists
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
-                }
-
-                // Move the file
-                $image->move($destinationPath, $profile_image);
-
-            }
-            else{
-                $profile_image = 1;
-            }
-
-
-           
-            $amount = $request->amount;
-            $purpose = $request->purpose;
-            $beneficiary_id = $request->beneficiary_id;
-           
-           
-            $data = array(
-                'user_id'=> Auth::user()->id, 
-                'beneficiary_id' => $beneficiary_id,
-                'collection_id'=> $result['response']['details']['collection_id'], 
-                'purpose' => $purpose,
-                'amount'=> $amount,
-                'ayojn_earn' => $request->ayojn_earn,
-                'receipt' => $profile_image,
-                'transaction_reference' => $result['response']['details']['order_reference'],
-                'form_name' => 'direct_payment',
+        if (is_array($result) && isset($result['error'])) {
+            \Illuminate\Support\Facades\Log::error(
+                'Payment gateway request failed while starting a direct payment.',
+                ['user_id' => Auth::id(), 'error' => $result['error']]
             );
 
-            $rstorder = DB::table('direct_payment')->insert($data);
-            
-            header("Window-target: _parent");
-            header('Location:'.$result['response']['details']['payment_url']);
-            exit;
-           // echo "</pre>";
+            return redirect()->back()->withErrors('Payment service is unavailable. Please try again later.');
         }
-        
-       // echo "</body></html>";
+
+        $gatewayResponse = is_array($result) && isset($result['response']) ? $result['response'] : null;
+        $paymentDetails = is_array($gatewayResponse) && isset($gatewayResponse['details'])
+            ? $gatewayResponse['details']
+            : null;
+        if (
+            ! is_array($result) ||
+            ! isset($result['status']) ||
+            $result['status'] < 200 ||
+            $result['status'] >= 300 ||
+            ! is_array($paymentDetails) ||
+            ! isset(
+                $paymentDetails['collection_id'],
+                $paymentDetails['order_reference'],
+                $paymentDetails['payment_url']
+            )
+        ) {
+            \Illuminate\Support\Facades\Log::error(
+                'Payment gateway returned an invalid response while starting a direct payment.',
+                [
+                    'user_id' => Auth::id(),
+                    'status' => is_array($result) && isset($result['status']) ? $result['status'] : null,
+                ]
+            );
+
+            return redirect()->back()->withErrors('Payment service returned an invalid response. Please try again later.');
+        }
+
+        if ($receipt) {
+            $profileImage = time() . '.' . $receipt->getClientOriginalExtension();
+            $destinationPath = public_path('receipt');
+
+            if (! file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            $receipt->move($destinationPath, $profileImage);
+        } else {
+            $profileImage = 1;
+        }
+
+        DB::table('direct_payment')->insert([
+            'user_id' => Auth::user()->id,
+            'beneficiary_id' => $request->beneficiary_id,
+            'collection_id' => $paymentDetails['collection_id'],
+            'purpose' => $request->purpose,
+            'amount' => $request->amount,
+            'ayojn_earn' => $request->ayojn_earn,
+            'receipt' => $profileImage,
+            'transaction_reference' => $paymentDetails['order_reference'],
+            'form_name' => 'direct_payment',
+        ]);
+
+        return redirect()->away($paymentDetails['payment_url']);
     }
 
 
@@ -1177,7 +1120,17 @@ class XsquareController extends Controller
 
      
         $update = DB::table('direct_payment')->where('transaction_reference','=',$request->get('transaction_reference'))->update($data);
-        return view('user.success')->with('redirection', $redirection);
+        return view('user.success')
+            ->with('redirection', $redirection)
+            ->with('paymentData', $request->only([
+                'amount',
+                'transaction_reference',
+                'payment_date',
+                'payment_mode',
+                'receiver_name',
+                'payer_name',
+            ]))
+            ->with('collectionId', $fetch[0]->collection_id);
     }
 
     public function failed(Request $request)
