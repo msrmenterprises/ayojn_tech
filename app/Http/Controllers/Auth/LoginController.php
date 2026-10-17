@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\MfaDelivery;
+use App\Services\MfaChallenge;
 use Carbon\Carbon;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Session;
 use App\User;
-use Illuminate\Support\Facades\Mail;
 
 class LoginController extends Controller
 {
@@ -53,179 +53,148 @@ class LoginController extends Controller
         return view('partner.login');
     }
 
-   function createRandomPassword($n)
+    private function sendMfaChallenge(User $user, Request $request)
     {
-       // $pass = substr(md5(uniqid(mt_rand(), true)), 0, $length);
+        $delivery = new MfaDelivery();
+        $recipients = $delivery->recipientFor($user);
+        $challenge = new MfaChallenge();
+        $code = $challenge->issue($user, 'partner', $request);
 
-       $generator = "1357902468"; 
-       $result = ""; 
-  
-       for ($i = 1; $i <= $n; $i++) { 
-            $result .= substr($generator, (rand()%(strlen($generator))), 1); 
-       } 
+        if (! $delivery->send($user, $code, $recipients)) {
+            $challenge->clear('partner', $request);
 
-        return $result;
-    }
-
-    public function checkmfa($request)
-    {
-        $email = $request['email']; 
-        $user = User::where('email', "=", $email)->first();
-        $code = $this->createRandomPassword(6);
-        User::where('email', "=", $email)->update(['otp' => $code]);
-        if($user)
-        {
-            Mail::send('/mail/MFAVerification', ['user' => $user,'code'=> $code], function ($m) use ($user) {
-                $m->to($user->email)->subject("MFA Verification")->getSwiftMessage()
-                    ->getHeaders()
-                    ->addTextHeader('x-mailgun-native-send', 'true');
-            });
-
-            if(count(Mail::failures()) > 0 ) {
-              $mfa = false;
-            } else {
-              $mfa = true;
-           }
-
-           return $mfa;
+            return false;
         }
+
+        return true;
     }
 
 
     public function direct_login_partner(Request $request)
     {
-        
-        $credentials = ['email' =>  $request->session()->get('direct_partner_email'), 'password' =>  $request->session()->get('direct_partner_password')];
-        if(Auth::attempt($credentials, $request->has('remember')))
-        {
-            if (!empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
-                $this->guard()->logout();
-                $request->session()->invalidate();
-                return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
-            }
+        $request->session()->forget([
+            'direct_partner_email',
+            'direct_partner_password',
+            'p_email',
+            'p_password',
+        ]);
 
-            if (Auth::user()->userstatus == 0) {
-                $intended = 'partner/pending';
-            } elseif (Auth::user()->is_suspend == 1) {
-                $intended = 'partner/suspend';
-            }else{
-                $user = Auth::user();
-                $user->update([
-                    'last_login_at' => Carbon::now()->toDateTimeString(),
-                ]);
-                $auth = true; 
-                $intended = "partner/home";
-            } 
-            return redirect()->intended($intended);
-
-        }else{
-            return redirect()->intended('/partner/login')->withErrors('Something went wrong');
-            }
-
+        return redirect('/partner/login')->with(
+            'success_message',
+            'Your email address is verified. Please sign in to continue.'
+        );
     }
 
     public function login(Request $request)
     {
+        (new MfaChallenge())->clear('partner', $request);
+        $request->session()->forget([
+            'p_email',
+            'p_password',
+            'direct_partner_email',
+            'direct_partner_password',
+        ]);
+
         $this->validateLogin($request);
-        $auth = false;
         $credentials = ['email' => $request->get('p_email'), 'password' => $request->get('p_password')];
-        //$intended = '/partner/home';
-        $intended = '/partner/mfa';
+        $user = User::where('email', $credentials['email'])->first();
 
-
-        if(Auth::validate($credentials)){
-
-            $this->checkmfa($credentials);
-            $request->session()->put('p_email', $request->get('p_email'));
-            $request->session()->put('p_password', $request->get('p_password'));
-            return redirect()->intended($intended);
-
-
-            //if (Auth::attempt($credentials, $request->has('remember'))) {
-                
-                // if (! empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
-                //     $this->guard()->logout();
-                //     $request->session()->invalidate();
-                //     return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
-                // }
-                // if (Auth::user()->userstatus == 0) {
-                //     $intended = 'partner/pending';
-                // } elseif (Auth::user()->is_suspend == 1) {
-                //     $intended = 'partner/suspend';
-                // } else {
-                //     //$intended = $this->redirectPath();
-                //     $this->guard()->logout();
-                //     $this->checkmfa($credentials);
-                //     $request->session()->put('p_email', $request->get('p_email'));
-                //     $request->session()->put('p_password', $request->get('p_password'));
-                //     $intended = "partner/mfa";
-
-                // }
-                // $user = Auth::user();
-                // $user->update([
-                //     'last_login_at' => Carbon::now()->toDateTimeString(),
-                // ]);
-                // $auth = true; 
-            
-                
-            
-            //}
-
-        }else{
+        if (
+            ! $user
+            || $user->sponsor_type != 3
+            || ! Auth::guard('web')->validate($credentials)
+        ) {
             return redirect()->back()->withErrors('Invalid Credentials');
         }
 
+        if (! $this->sendMfaChallenge($user, $request)) {
+            return redirect()->back()->withErrors('Unable to send the MFA code. Please try again.');
+        }
+
+        return redirect()->intended('/partner/mfa');
     }
 
-     public function mfa()
+    public function mfa(Request $request)
     {
+        $request->session()->forget([
+            'p_email',
+            'p_password',
+            'direct_partner_email',
+            'direct_partner_password',
+        ]);
+
+        if ((new MfaChallenge())->pendingUserId('partner', $request) === null) {
+            return redirect('/partner/login')->withErrors('Please sign in to request an MFA code.');
+        }
+
         return view('partner.mfa');
     }
 
     public function verify_mfa(Request $request)
     {
-        $otp = $request->post('p_otp');   
-        $getotp = User::where('otp', "=", $otp)->value('otp');
-        if($getotp==$otp || $otp == '982625'){
+        $request->session()->forget([
+            'p_email',
+            'p_password',
+            'direct_partner_email',
+            'direct_partner_password',
+        ]);
 
-            $credentials = ['email' => $request->session()->get('p_email'), 'password' => $request->session()->get('p_password')];
-            if(Auth::attempt($credentials, $request->has('remember')))
-            {
-                if (! empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
-                    $this->guard()->logout();
-                    $request->session()->invalidate();
-                    return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
-                }
+        $challenge = new MfaChallenge();
+        $userId = $challenge->pendingUserId('partner', $request);
+        $user = $userId ? User::find($userId) : null;
 
-                if (Auth::user()->userstatus == 0) {
-                    $intended = 'partner/pending';
-                } elseif (Auth::user()->is_suspend == 1) {
-                    $intended = 'partner/suspend';
-                }else{
-                    $user = Auth::user();
-                    $user->update([
-                        'last_login_at' => Carbon::now()->toDateTimeString(),
-                    ]);
-                    $auth = true; 
-                    $intended = "partner/home";
-                } 
-                return redirect()->intended($intended);
+        if (! $user || $user->sponsor_type != 3) {
+            $challenge->clear('partner', $request);
 
-            }
-            
-            
-        }else{
-            return redirect()->back()->withErrors('otp not matched');
+            return redirect()->back()->withErrors('Please sign in again to request an MFA code.');
         }
-            
+
+        if (! $challenge->verify('partner', $user->id, $request->post('p_otp'), $request)) {
+            return redirect()->back()->withErrors('MFA code is invalid or has expired. Please request a new code.');
+        }
+
+        Auth::guard('web')->login($user, $request->has('remember'));
+        $request->session()->regenerate();
+
+        if ($user->userstatus == 0) {
+            $intended = 'partner/pending';
+        } elseif ($user->is_suspend == 1) {
+            $intended = 'partner/suspend';
+        } else {
+            $user->update([
+                'last_login_at' => Carbon::now()->toDateTimeString(),
+            ]);
+            $intended = 'partner/home';
+        }
+
+        return redirect()->intended($intended);
     }
 
 
     public function resent_mfa(Request $request)
     {
-         $credentials = ['email' => $request->session()->get('p_email'), 'password' => $request->session()->get('p_password')];
-         $this->checkmfa($credentials);
-         return redirect()->back()->withErrors('otp resent');
+        $request->session()->forget([
+            'p_email',
+            'p_password',
+            'direct_partner_email',
+            'direct_partner_password',
+        ]);
+
+        $challenge = new MfaChallenge();
+        $userId = $challenge->pendingUserId('partner', $request);
+        $user = $userId ? User::find($userId) : null;
+
+        if (! $user || $user->sponsor_type != 3) {
+            $challenge->clear('partner', $request);
+
+            return redirect('/partner/login')->withErrors('Please sign in again to request an MFA code.');
+        }
+
+        if (! $this->sendMfaChallenge($user, $request)) {
+            return redirect()->back()->withErrors('Unable to send the MFA code. Please try again.');
+        }
+
+        return redirect()->back()->with('success', 'A new MFA code has been sent.');
     }
 
 

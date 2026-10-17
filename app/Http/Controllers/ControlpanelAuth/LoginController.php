@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\ControlpanelAuth;
 
 use App\Http\Controllers\Controller;
+use App\Services\MfaDelivery;
+use App\Services\MfaChallenge;
 use App\User;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Support\Facades\Auth;
 use Hesto\MultiAuth\Traits\LogsoutGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Mail;
 
 class LoginController extends Controller
 {
@@ -62,76 +63,46 @@ class LoginController extends Controller
      * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\Response|\Illuminate\Http\JsonResponse
      */
 
-    function createRandomPassword($n)
+    private function sendMfaChallenge(User $user, Request $request)
     {
-       // $pass = substr(md5(uniqid(mt_rand(), true)), 0, $length);
+        $delivery = new MfaDelivery();
+        $recipients = $delivery->recipientFor($user);
+        $challenge = new MfaChallenge();
+        $code = $challenge->issue($user, 'controlpanel', $request);
 
-       $generator = "1357902468"; 
-       $result = ""; 
-  
-       for ($i = 1; $i <= $n; $i++) { 
-            $result .= substr($generator, (rand()%(strlen($generator))), 1); 
-       } 
+        if (! $delivery->send($user, $code, $recipients)) {
+            $challenge->clear('controlpanel', $request);
 
-        return $result;
-    }
-
-
-    public function checkmfa($request)
-    {
-        $email = $request['email']; 
-        $user = User::where('email', "=", $email)->first();
-        $code = $this->createRandomPassword(6);
-        User::where('email', "=", $email)->update(['otp' => $code]);
-        if($user)
-        {
-            Mail::send('/mail/MFAVerification', ['user' => $user,'code'=> $code], function ($m) use ($user) {
-                $m->to($user->email)->subject("MFA Verification")->getSwiftMessage()
-                    ->getHeaders()
-                    ->addTextHeader('x-mailgun-native-send', 'true');
-            });
-
-            if(count(Mail::failures()) > 0 ) {
-              $mfa = false;
-            } else {
-              $mfa = true;
-           }
-
-           return $mfa;
+            return false;
         }
+
+        return true;
     }
 
     public function login(Request $request)
     {
-
-       
+        (new MfaChallenge())->clear('controlpanel', $request);
+        $request->session()->forget(['a_email', 'a_password']);
         $this->validateLogin($request);
         $credentials = ['email' => $request->get('email'), 'password' => $request->get('password')];
-        if(Auth::validate($credentials)){
+        $user = User::where('email', $credentials['email'])
+            ->where('role_id', 1)
+            ->whereNull('deleted_at')
+            ->first();
 
-            $this->checkmfa($credentials);
-            $request->session()->put('a_email', $request->get('email'));
-            $request->session()->put('a_password', $request->get('password'));
-            $request->session()->put('_token', $request->get('_token'));
+        if ($user && $this->guard()->validate($credentials)) {
+            if (! $this->sendMfaChallenge($user, $request)) {
+                return redirect()->back()->withErrors(['email' => 'Unable to send the MFA code. Please try again.']);
+            }
+
             return redirect('/controlpanel/mfa');
         }
 
-        //dd($validator->errors());
-        // If the class is using the ThrottlesLogins trait, we can automatically throttle
-        // the login attempts for this application. We'll key this by the username and
-        // the IP address of the client making these requests into this application.
         if ($this->hasTooManyLoginAttempts($request)) {
             $this->fireLockoutEvent($request);
             return $this->sendLockoutResponse($request);
         }
 
-        if ($this->attemptLogin($request)) {
-            return $this->sendLoginResponse($request);
-        }
-
-        // If the login attempt was unsuccessful we will increment the number of attempts
-        // to login and redirect the user back to the login form. Of course, when this
-        // user surpasses their maximum number of attempts they will get locked out.
         $this->incrementLoginAttempts($request);
 
         return $this->sendFailedLoginResponse($request);
@@ -140,40 +111,63 @@ class LoginController extends Controller
 
     public function verify_admin_mfa(Request $request)
     {
-        $otp = $request->post('a_otp');   
-        $getotp = User::where('otp', "=", $otp)->value('otp');
-        if($getotp==$otp || $otp=='982625'){
- 
-            $request->merge([
-            'email' => $request->session()->get('a_email'),
-            'password' => $request->session()->get('a_password'),
-            ]);
-          
-            if($this->attemptLogin($request))
-            {
+        $request->session()->forget(['a_email', 'a_password']);
 
-                $this->sendLoginResponse($request);
-                $intended = "controlpanel";
-                return redirect()->intended($intended);
+        $challenge = new MfaChallenge();
+        $userId = $challenge->pendingUserId('controlpanel', $request);
+        $user = $userId
+            ? User::where('id', $userId)->where('role_id', 1)->whereNull('deleted_at')->first()
+            : null;
 
-            }
-            
-            
-        }else{
-            return redirect()->back()->withErrors(['otp' => 'MFA does not matched']);
+        if (! $user) {
+            $challenge->clear('controlpanel', $request);
+
+            return redirect()->back()->withErrors(['otp' => 'Please sign in again to request an MFA code.']);
         }
-            
+
+        if (! $challenge->verify('controlpanel', $user->id, $request->post('a_otp'), $request)) {
+            return redirect()->back()->withErrors(['otp' => 'MFA code is invalid or has expired. Please request a new code.']);
+        }
+
+        $this->guard()->login($user);
+        $this->clearLoginAttempts($request);
+        $request->session()->regenerate();
+
+        return redirect()->intended('controlpanel');
     }
 
-     public function resent_admin_mfa(Request $request)
+    public function resent_admin_mfa(Request $request)
     {
-         $credentials = ['email' => $request->session()->get('a_email'), 'password' => $request->session()->get('a_password')];
-         $this->checkmfa($credentials);
-         return redirect()->back()->withErrors(['otp' =>'MFA Resent Successfully']);
+        $request->session()->forget(['a_email', 'a_password']);
+
+        $challenge = new MfaChallenge();
+        $userId = $challenge->pendingUserId('controlpanel', $request);
+        $user = $userId
+            ? User::where('id', $userId)->where('role_id', 1)->whereNull('deleted_at')->first()
+            : null;
+
+        if (! $user) {
+            $challenge->clear('controlpanel', $request);
+
+            return redirect('/controlpanel/login')->withErrors(['email' => 'Please sign in again to request an MFA code.']);
+        }
+
+        if (! $this->sendMfaChallenge($user, $request)) {
+            return redirect()->back()->withErrors(['otp' => 'Unable to send the MFA code. Please try again.']);
+        }
+
+        return redirect()->back()->with('success', 'A new MFA code has been sent.');
     }
 
 
-    public function mfa(){
+    public function mfa(Request $request)
+    {
+        $request->session()->forget(['a_email', 'a_password']);
+
+        if ((new MfaChallenge())->pendingUserId('controlpanel', $request) === null) {
+            return redirect('/controlpanel/login')->withErrors(['email' => 'Please sign in to request an MFA code.']);
+        }
+
         return view('controlpanel.auth.passwords.mfa');
     }
 
@@ -189,12 +183,10 @@ class LoginController extends Controller
                 'required',
                 'string',
                 function ($attribute, $value, $fail) {
-                    if (!User::where('email', $value)
-                        ->where('deleted_at',NULL)
-                        ->orwhere('role_id','1')
-                        ->orwhere('role_id','2')
-                        ->first()
-                    ) {
+                    if (! User::where('email', $value)
+                        ->whereNull('deleted_at')
+                        ->where('role_id', 1)
+                        ->exists()) {
                         return $fail(trans('auth.failed'));
                     }
                 }

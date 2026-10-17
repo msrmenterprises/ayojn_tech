@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\UserAuth;
 
 use App\Http\Controllers\Controller;
+use App\Services\MfaDelivery;
+use App\Services\MfaChallenge;
 use Carbon\Carbon;
 use Hesto\MultiAuth\Traits\LogsoutGuard;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
@@ -12,7 +14,6 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use DB;
 use Hash;
-use Illuminate\Support\Facades\Mail;
 use App\User;
 use Illuminate\Support\Facades\Session;
 
@@ -71,202 +72,149 @@ class LoginController extends Controller
     {
         return view('user.auth.login');
     }
-    function createRandomPassword($n)
+    private function sendMfaChallenge(User $user, Request $request)
     {
-       // $pass = substr(md5(uniqid(mt_rand(), true)), 0, $length);
+        $delivery = new MfaDelivery();
+        $recipients = $delivery->recipientFor($user);
+        $challenge = new MfaChallenge();
+        $code = $challenge->issue($user, 'user', $request);
 
-       $generator = "1357902468"; 
-       $result = ""; 
-  
-       for ($i = 1; $i <= $n; $i++) { 
-            $result .= substr($generator, (rand()%(strlen($generator))), 1); 
-       } 
+        if (! $delivery->send($user, $code, $recipients)) {
+            $challenge->clear('user', $request);
 
-        return $result;
-    }
-
-    public function checkmfa($request)
-    {
-        $email = $request['email']; 
-        $user = User::where('email', "=", $email)->first();
-        $code = $this->createRandomPassword(6);
-        User::where('email', "=", $email)->update(['otp' => $code]);
-        if($user)
-        {
-            Mail::send('/mail/MFAVerification', ['user' => $user,'code'=> $code], function ($m) use ($user) {
-                $m->to($user->email)->subject("MFA Verification")->getSwiftMessage()
-                    ->getHeaders()
-                    ->addTextHeader('x-mailgun-native-send', 'true');
-            });
-
-            if(count(Mail::failures()) > 0 ) {
-              $mfa = false;
-            } else {
-              $mfa = true;
-           }
-
-           return $mfa;
+            return false;
         }
+
+        return true;
     }
 
     public function resent_mfa_user(Request $request)
     {
-         $credentials = ['email' => $request->post('email'), 'password' => $request->post('password')];
-         $this->checkmfa($credentials);
+        $this->validate($request, [
+            'email' => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        $credentials = ['email' => $request->post('email'), 'password' => $request->post('password')];
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (
+            ! $user
+            || $user->sponsor_type == 3
+            || ! Auth::guard('web')->validate($credentials)
+        ) {
+            return response()->json([
+                'status' => 8,
+                'intended' => 'Invalid Credentials',
+            ]);
+        }
+
+        if (! $this->sendMfaChallenge($user, $request)) {
+            return response()->json([
+                'status' => 8,
+                'intended' => 'Unable to send the MFA code. Please try again.',
+            ]);
+        }
+
          return response()->json([
             'status' => 1,
             'intended' => 'MFA has been resent on your Register Email',
         ]);
-        
     }
 
     public function login(Request $request)
     {
-
-
-        
         $this->validateLogin($request);
-        $auth = false;
         $credentials = $request->only('email', 'password');
-        $intended = '/';
-        
+        $user = User::where('email', $credentials['email'])->first();
+        $challenge = new MfaChallenge();
+        $validCredentials = Auth::guard('web')->validate($credentials);
 
+        if (! $user || ! $validCredentials) {
+            $challenge->clear('user', $request);
 
-        if(Auth::validate($credentials))
-        {
-            //check only login offer/Rec user not partner  
-            $sponsor_type = User::where('email',$request->email)->value('sponsor_type');
-            if($sponsor_type !=3){
-
-                $otp = $request->otp;
-                if($otp == ""){
-                $runmfa = $this->checkmfa($request->post()); 
-                    if($runmfa)
-                    {
-                        return response()->json([
-                            'status' => 5,
-                            'intended' => 'MFA has been send on your Register Email',
-                        ]);
-                    }
-                }
-                else{
-    
-                
-                 
-                $getotp = User::where('otp', "=", $otp)->value('otp');
-                if($getotp==$otp || $otp == "982625"){
-                   
-    
-                    if(Auth::attempt($credentials, $request->has('remember'))) 
-                    {
-            
-                            // if (strtotime(Auth::user()->disapprove_time) <= strtotime(Carbon::now()->toDateTimeString())) {
-                            //     $intended = '/pending';
-                            // } else
-                            if (Auth::user()->userstatus == 0) {
-                                $intended = '/pending';
-                            } elseif (Auth::user()->is_suspend == 1) {
-                                $intended = '/suspend';
-                            } else {
-                                $intended = $this->redirectTo();
-                            }
-                            $user = Auth::user();
-                
-                            $user->update([
-                                'last_login_at' => Carbon::now()->toDateTimeString(),
-                            ]);
-
-
-                            //redirection to directpay if user coming from referal link
-                            $previousUrl = url()->previous();
-                            
-                            if (str_contains($previousUrl, '/profile/')) {
-                                 $username = str_replace(url('/profile/') . '/', '', $previousUrl);
-                                $username_check = User::where('username', $username)->first();
-                                if ($username_check) {
-                                    $request->session()->put('user_profile', $username_check->id);
-                                }
-                            }
-
-                              //xsquare login accesstocken add in session
-                              //$xsquare = $this->xsquarelogin();
-                              //$request->session()->put('payment_token', $xsquare->details->access_token);
-                              //$request->session()->put('payment_refresh_token', $xsquare->details->refresh_token);
-                              $auth = true; // Success
-                    }
-            
-                    if ($request->ajax()) {
-                      
-                            if (! empty(Auth::user()) &&  Auth::user()->sponsor_type == 3) {
-                                $this->guard()->logout();
-            
-                                $request->session()->invalidate();
-            
-                                return response()->json([
-                                    'status' => 2,
-                                    'auth' => $auth,
-                                    'intended' => $intended
-                                ]);
-                            }
-                            if (! empty(Auth::user()) && Auth::user()->email_verified == 0) {
-                                Auth::guard('web')->logout();
-                                $this->guard()->logout();
-            
-                                $request->session()->invalidate();
-            
-                                return response()->json([
-                                    'status' => 0,
-                                    'auth' => $auth,
-                                    'intended' => '/'
-                                ]);
-                            } else {
-                                return response()->json([
-                                    'status' => 1,
-                                    'auth' => $auth,
-                                    'intended' => $intended
-                                ]);
-                            }
-                        
-            
-                    } else {
-                        return redirect()->intended($this->redirectPath());
-                    }
-    
-                    return response()->json([
-                        'status' => 6,
-                        'intended' => 'MFA has been Authenticated Successfully',
-                    ]);
-               }
-               else{
-                    return response()->json([
-                        'status' => 7,
-                        'intended' => 'MFA Not Matched, Please try again',
-                    ]);
-               }
-            }
-    
-
-            }else{
-
-                return response()->json([
-                    'status' => 8,
-                    'auth' => $auth,
-                    'intended' => "Invalid Credentials or wrong Credential"
-                ]);
-
-            }
-
-           
-        }else{
             return response()->json([
                 'status' => 8,
-                'auth' => $auth,
-                'intended' => "Invalid Credentials"
+                'auth' => false,
+                'intended' => 'Invalid Credentials',
             ]);
         }
-        
-       
-        //return redirect(URL::route('/'));
+
+        if ($user->sponsor_type == 3) {
+            $challenge->clear('user', $request);
+
+            return response()->json([
+                'status' => 8,
+                'auth' => false,
+                'intended' => 'Invalid Credentials or wrong Credential',
+            ]);
+        }
+
+        if (empty($request->input('otp'))) {
+            if (! $this->sendMfaChallenge($user, $request)) {
+                return response()->json([
+                    'status' => 8,
+                    'intended' => 'Unable to send the MFA code. Please try again.',
+                ]);
+            }
+
+            return response()->json([
+                'status' => 5,
+                'intended' => 'MFA has been send on your Register Email',
+            ]);
+        }
+
+        if (! $challenge->verify('user', $user->id, $request->input('otp'), $request)) {
+            return response()->json([
+                'status' => 7,
+                'intended' => 'MFA Not Matched, Please try again',
+            ]);
+        }
+
+        Auth::guard('web')->login($user, $request->has('remember'));
+        $request->session()->regenerate();
+
+        if ($user->userstatus == 0) {
+            $intended = '/pending';
+        } elseif ($user->is_suspend == 1) {
+            $intended = '/suspend';
+        } else {
+            $intended = $this->redirectTo();
+        }
+
+        $user->update([
+            'last_login_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $previousUrl = url()->previous();
+        if (str_contains($previousUrl, '/profile/')) {
+            $username = str_replace(url('/profile/') . '/', '', $previousUrl);
+            $usernameCheck = User::where('username', $username)->first();
+            if ($usernameCheck) {
+                $request->session()->put('user_profile', $usernameCheck->id);
+            }
+        }
+
+        if ($request->ajax()) {
+            if ($user->email_verified == 0) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+
+                return response()->json([
+                    'status' => 0,
+                    'auth' => true,
+                    'intended' => '/',
+                ]);
+            }
+
+            return response()->json([
+                'status' => 1,
+                'auth' => true,
+                'intended' => $intended,
+            ]);
+        }
+
+        return redirect()->intended($this->redirectPath());
     }
 
     /*public function login(Request $request)

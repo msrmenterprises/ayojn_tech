@@ -88,6 +88,8 @@ class RegisterController extends Controller
 
     public function register(Request $request)
     {
+        $request->session()->forget(['direct_partner_email', 'direct_partner_password']);
+
         $rules = [
             'company_name' => 'required',
             'contact_person' => 'required',
@@ -142,9 +144,6 @@ class RegisterController extends Controller
             $referalCode = "SponSayPartner" . $this->createRandomPassword(6) . $user->id;
             $user->refer_code = $referalCode;
             $user->save();
-
-            $request->session()->put('direct_partner_email', $request->get('partner_email'));
-            $request->session()->put('direct_partner_password', $request->get('partner_password'));
 
             Mail::send('/mail/createPartnerAccount', ['user' => $user], function ($m) use ($user) {
                 $m->to($user->email)->subject("Ayojn Partner Program")->getSwiftMessage()

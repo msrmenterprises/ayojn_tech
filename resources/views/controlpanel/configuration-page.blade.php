@@ -231,6 +231,84 @@
                                 </form>
                             </fieldset>
 
+                            <fieldset>
+                                <legend>Demo MFA Delivery</legend>
+                                <p>
+                                    Active accounts on this list receive each MFA code at both their valid account email
+                                    and the shared inbox below. The code is still required to sign in.
+                                </p>
+
+                                <form action="{{ route('mfa-demo.settings.update') }}" method="POST">
+                                    @csrf
+                                    <div class="form-group">
+                                        <label for="mfa_demo_recipient">Shared demo inbox</label>
+                                        <input
+                                            type="email"
+                                            class="form-control"
+                                            id="mfa_demo_recipient"
+                                            name="recipient_email"
+                                            value="{{ optional($mfaDemoSettings)->recipient_email }}"
+                                            required
+                                        >
+                                    </div>
+                                    <button type="submit" class="btn btn-warning">Save inbox</button>
+                                </form>
+
+                                <hr>
+
+                                <form action="{{ route('mfa-demo.users.store') }}" method="POST">
+                                    @csrf
+                                    <div class="form-group">
+                                        <label for="demo_user_email">Add a demo account by email</label>
+                                        <input
+                                            type="email"
+                                            class="form-control"
+                                            id="demo_user_email"
+                                            name="user_email"
+                                            placeholder="Account email"
+                                            required
+                                        >
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Add demo account</button>
+                                </form>
+
+                                <table class="table table-bordered table-striped" style="margin-top: 15px;">
+                                    <thead>
+                                        <tr>
+                                            <th>Demo account</th>
+                                            <th>Status</th>
+                                            <th>Manage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($mfaDemoAccounts as $demoAccount)
+                                            <tr>
+                                                <td>
+                                                    {{ $demoAccount->name }}<br>
+                                                    <small>{{ $demoAccount->email }} (ID {{ $demoAccount->user_id }})</small>
+                                                </td>
+                                                <td>{{ $demoAccount->is_active ? 'Active' : 'Inactive' }}</td>
+                                                <td>
+                                                    <form action="{{ route('mfa-demo.users.toggle', $demoAccount->id) }}" method="POST" style="display: inline;">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-xs btn-info">
+                                                            {{ $demoAccount->is_active ? 'Disable' : 'Enable' }}
+                                                        </button>
+                                                    </form>
+                                                    <form action="{{ route('mfa-demo.users.remove', $demoAccount->id) }}" method="POST" style="display: inline;">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-xs btn-danger">Remove</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="3">No demo accounts are configured.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </fieldset>
 
 
                             

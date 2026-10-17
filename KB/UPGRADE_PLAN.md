@@ -114,6 +114,8 @@ No feature is considered optional solely because its dependency is old or diffic
 4. Review the Composer audit output package by package, prioritize critical/high advisories and reachable application features, and record the selected fix or accepted risk.
 5. Re-run tests and `composer audit` after each dependency milestone.
 
+**Authentication implementation checkpoint (2026-10-17):** Phase 3 items 1 and 2 are implemented on `phase3_upgrades`. Active user, partner, and admin login flows use six-digit, session-bound MFA challenges with five-minute expiry, hashed codes, a five-attempt limit, and one-time consumption. Partner/admin passwords are no longer retained in the session; partner email verification requires the user to sign in rather than silently authenticating from a saved password. Control-panel login and MFA delivery management are limited to `role_id=1`, matching the `isAdmin` gate. The Control Panel Configuration page manages one shared demo inbox and an allowlist of active non-admin accounts. MFA goes to an allowlisted account's valid registered address and the shared inbox (the shared copy is BCC); unlisted users receive mail only at their own address. The allowlist is empty by default, invalid inbox settings fail explicitly, and MFA is never bypassed. Focused authentication/admin tests pass (32 tests, 140 assertions), the schema baseline tests pass (2 tests, 46 assertions), and the full PHPUnit suite passes (161 tests, 786 assertions). The additive MFA migration has been applied and verified on the local database; production migration and end-to-end mail/MFA verification remain open, as does dependency-advisory disposition.
+
 **Gate:** Authentication has no fixed bypass or plaintext password session storage, and unresolved advisories have a documented, approved disposition before any public staging.
 
 ## Phase 4: Upgrade PHP and Laravel on `app_upgrade`
@@ -162,9 +164,9 @@ No feature is considered optional solely because its dependency is old or diffic
 ## Immediate next actions
 
 1. Keep the 80% coverage target deferred, not passed; run the full PHPUnit suite and focused regression tests for changed code while coverage expansion is paused.
-2. Address the Phase 3 authentication blockers: remove fixed MFA bypasses and replace partner plaintext-password session handling with a short-lived challenge flow. Add focused tests for invalid, replayed, and expired MFA challenges.
-3. Verify production mail/MFA configuration and review critical/high Composer advisories package by package; document fixes or approved risks.
-4. Finish and obtain approval for the workflow inventory, including unresolved guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
+2. **Complete:** Addressed the Phase 3 fixed-MFA and plaintext-password session blockers with short-lived challenges and focused authentication regression tests. Local schema and application regression checks pass; production mail/MFA verification remains outstanding.
+3. Before production validation, apply the additive migration through the approved deployment process and configure the production mail transport and admin-managed demo inbox/account list. Review critical/high Composer advisories package by package and document fixes or approved risks.
+4. Finish and obtain approval for the workflow inventory, including remaining guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
 5. After the Phase 3 and inventory decisions are recorded, prepare PHP 8.5 locally and begin the Laravel upgrade one major version at a time. Preserve the current tested baseline for comparison.
 
 ## Explicitly out of scope until approved

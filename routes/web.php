@@ -492,11 +492,23 @@ Route::group(['prefix' => 'controlpanel'], function () {
         Route::post('/store-payment', 'UserAuth\SettingController@store_payment')->name('store-payment');
         Route::get('/controlpanel-refund', 'ControlpanelAuth\PartnerController@refund')->name('controlpanel.refund');
         Route::get('/setting-button', 'ControlpanelAuth\AdminSettingController@buttons_setting')->name('setting.button');
-        Route::get('/configuration', 'ControlpanelAuth\AdminSettingController@configuration')->name('configuration');
-        Route::post('/configuration-update', 'ControlpanelAuth\AdminSettingController@configuration_update')->name('configuration-update');
-        Route::post('/outbound-email-update', 'ControlpanelAuth\AdminSettingController@outbound_email_update')->name('outbound.email.update');
+        Route::get('/configuration', 'ControlpanelAuth\AdminSettingController@configuration')
+            ->middleware('can:isAdmin')->name('configuration');
+        Route::post('/configuration-update', 'ControlpanelAuth\AdminSettingController@configuration_update')
+            ->middleware('can:isAdmin')->name('configuration-update');
+        Route::post('/outbound-email-update', 'ControlpanelAuth\AdminSettingController@outbound_email_update')
+            ->middleware('can:isAdmin')->name('outbound.email.update');
+        Route::post('/mfa-demo/settings', 'ControlpanelAuth\AdminSettingController@updateMfaDemoSettings')
+            ->middleware('can:isAdmin')->name('mfa-demo.settings.update');
+        Route::post('/mfa-demo/users', 'ControlpanelAuth\AdminSettingController@storeMfaDemoUser')
+            ->middleware('can:isAdmin')->name('mfa-demo.users.store');
+        Route::post('/mfa-demo/users/{id}/toggle', 'ControlpanelAuth\AdminSettingController@toggleMfaDemoUser')
+            ->middleware('can:isAdmin')->name('mfa-demo.users.toggle');
+        Route::post('/mfa-demo/users/{id}/remove', 'ControlpanelAuth\AdminSettingController@removeMfaDemoUser')
+            ->middleware('can:isAdmin')->name('mfa-demo.users.remove');
         Route::post('/view-button-setting/{id?}', 'ControlpanelAuth\AdminSettingController@view_buttons_setting')->name('view-button-setting');
-        Route::post('/configuration-user-update', 'ControlpanelAuth\AdminSettingController@configuration_user_update')->name('configuration-user-update');
+        Route::post('/configuration-user-update', 'ControlpanelAuth\AdminSettingController@configuration_user_update')
+            ->middleware('can:isAdmin')->name('configuration-user-update');
         Route::post('/update-button-setting', 'ControlpanelAuth\AdminSettingController@update_buttons_setting')->name('update-button-setting');
         Route::get('/faqs', 'ControlpanelAuth\FaqController@index')->name('faqs');
         Route::post('/faqs/store', 'ControlpanelAuth\FaqController@store')->name('faqs.store');
