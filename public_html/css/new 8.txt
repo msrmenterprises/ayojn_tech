@@ -1,0 +1,15 @@
+In Cookie Policy Statement edit the last line: By clicking Accept, you agree to our use of these tools for analytics and support.->Done
+Sponsorr tab at footer detail to be rephrased as - Sponsorr is an an enterprise utility for the entities engaged on sponsorship activity.->Done
+Terms Tab: Use this https://getterms.io, use location as Ireland and Company as Sponsorr ->Done
+Privacy Tab: It's the same as Terms you will see once you are directed on that page -Done
+When client will enter email ( pls add a suggestive pop saying : We prefer official email addresses since the validation is easier for any inputs)->Done
+2nd part of the form where it says select industry edit that to : Select your Industry ->Doone
+2nd part of the form where it prompts for country selection please add: Worldwide and Globally to this list ->Done
+2nd part of the form where it prompts for 
+
+- Event & then says Please Specify add next to Specify (e.g Conference, Music Festival, Tradeshow, Exhibition etc) 
+- Campaign & then says Please Specify add next to Specify (e.g. Online, Offline, Social Media, Infleucer etc) 
+- Content & then says Please Specify add next to Specify (e.g. Blog, Video, Inforgraphics, Case Studies, Whitpapers, Articles, Interviews, Memes/ GIFs etc) 
+- Remove Gig 
+- Sports Team & then says Please Specify add next to Specify (e.g. Football, Regional, Adventure Sports, Racetrack, International etc.) 
+->Done

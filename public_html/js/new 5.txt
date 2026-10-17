@@ -1,0 +1,246 @@
+<?php
+
+namespace App\Http\Controllers\api;
+
+use App\Media;
+use App\User;
+use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use Validator;
+
+class UserController extends Controller
+{
+    use ApiResponse;
+
+    /**
+     * @api {post}  change-password Change Password
+     * @apiName Change Password
+     * @apiGroup Account
+     * @apiVersion 1.0.0
+     * @apiSuccessExample Request-Header:
+    {
+        Key: Authorization
+        Value: Bearer token
+     }
+     * @apiSuccessExample Request-Body:
+    {
+         "old_password":"123456",
+         "password":"1234567",
+         "password_confirmation":"1234567"
+    }
+     * @apiSuccessExample Success-Response:
+    {
+        "status": true,
+        "message": "Your password change successfully"
+    }
+     * @apiSuccessExample Error-Response:
+    {
+        "status": false,
+        "errors": " Please enter old password."
+    }
+     */
+    public function updatePassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'old_password' => 'required|min:6',
+            'password' => 'required|confirmed|min:6',
+        ], [
+            'old_password.required' => ' Please enter old password.',
+            'old_password.min' => 'Password must be of minimum 6 digits',
+            'password.required' => ' Please enter new password.',
+            'password.min' => 'Password must be of minimum 6 digits',
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrors($validator)->setStatusCode(400);
+        }
+        $password = bcrypt($request->password);
+        if ($request->old_password == $request->password) {
+            return $this->failResponse("Please do not same current password and new password")->setStatusCode(400);
+        }
+        $userId = $request->user()->id;
+        $userData = User::find($userId);
+        if (password_verify($request->old_password, $userData->password)) {
+            $UserData = [
+                'password' => $password,
+            ];
+            User::where('id', $userId)->update($UserData);
+
+            return $this->successResponse(trans('Your password change successfully'));
+        } else {
+            return $this->failResponse("Your current password not match with old password")->setStatusCode(400);
+        }
+    }
+
+    /**
+     * @api {get}  profile Full User Profile
+     * @apiName Full User Profile
+     * @apiGroup Account
+     * @apiVersion 1.0.0
+     * @apiSuccessExample Request-Header:
+    {
+        Key: Authorization
+        Value: Bearer token
+    }
+     * @apiSuccessExample Request-Body:
+    {
+    }
+     * @apiSuccessExample Success-Response:
+    {
+        "status": true,
+        "message": "message.profileFetchSuccessfully",
+        "user": {
+            "id": 1,
+            "timeline_id": 1,
+            "verified": 1,
+            "email_verified": 1,
+            "birthday": "1970-01-01",
+            "country_id": 101,
+            "state_id": 12,
+            "city_id": 1041,
+            "coaching_level": "Semi-Pro",
+            "affilation": "Arsenal F.C",
+            "designation": "",
+            "hobbies": "",
+            "interests": "",
+            "gender": "male",
+            "active": 1,
+            "last_logged": null,
+            "timezone": null,
+            "language": "en",
+            "affilation_id": null,
+            "affilation_code": null,
+            "created_at": "2018-02-27 06:01:02",
+            "updated_at": "2018-09-10 23:29:22",
+            "deleted_at": null,
+            "name": "Admin",
+            "avatar": "http://localhost/gaffer_demo/public/user/avatar/default-male-avatar.png",
+            "cover": null,
+            "about": "Some text about me",
+            "city": {
+                "id": 1041,
+                "name": "Surat",
+                "state_id": 12
+            },
+            "state": {
+                "id": 12,
+                "name": "Gujarat",
+                "country_id": 101
+            },
+            "country": {
+                "id": 101,
+                "short_name": "IN",
+                "name": "India",
+                "country_code": "91"
+            },
+            "username": "admin",
+            "avatar_id": 0,
+            "cover_id": null,
+            "cover_position": null,
+            "type": "user",
+            "hide_cover": 0,
+            "background_id": 2,
+            "cover_url": [],
+            "avatar_url": []
+        }
+    }
+     * @apiSuccessExample Error-Response:
+    {
+        "status": false,
+        "errors": "Please enter Token"
+    }
+     */
+
+    public function getProfile(Request $request){
+        $userId = $request->user()->id;
+        $userData = User::where('id', $userId)->with(['city', 'state', 'country'])->first();
+        $userData->makeVisible('email');
+        return $this->successResponse(trans('message.profileFetchSuccessfully'), [
+            'user' => $userData,
+        ]);
+    }
+
+    /**
+     * @api {post}  update-profile Update Profile
+     * @apiName Update Profile
+     * @apiGroup Account
+     * @apiVersion 1.0.0
+     * @apiSuccessExample Request-Header:
+    {
+        Key: Authorization
+        Value: Bearer token
+    }
+     * @apiSuccessExample Request-Body:
+    {
+        "name":"Test",
+        "gender":"male",
+        "birthday":"2018-01-20",
+        "profile_image":"File for upload",
+        "country_id":"101",
+        "state_id":"12",
+        "city_id":"1041",
+        "affilation":"Arsenal F.C",
+        "coaching_level":"Collegiate",
+        "about":"This is testbio",
+    }
+     * @apiSuccessExample Success-Response:
+    {
+        "status": true,
+        "message": "Profile Updated Successfully."
+    }
+     * @apiSuccessExample Error-Response:
+    {
+        "status": false,
+        "errors": "The name field is required."
+    }
+     */
+
+    public function updateProfile(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => "required",
+            'birthday' => "required",
+            'gender' => "required",
+            'profile_image' => 'image|mimes:jpg,jpeg,bmp,png',
+            'country_id' => "required",
+            'state_id' => "required",
+            'city_id' => "required",
+            'affilation' => "required",
+            'coaching_level' => "required",
+            'about' => "required",
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrors($validator)->setStatusCode(400);
+        }
+        $user = $request->user();
+        $user->birthday = $request->birthday;
+        $user->gender = $request->gender;
+        $user->country_id = $request->country_id;
+        $user->state_id = $request->state_id;
+        $user->city_id = $request->city_id;
+        $user->affilation = $request->affilation;
+        $user->coaching_level = $request->coaching_level;
+        $user->save();
+
+        $timeline = $user->timeline;
+        if ($request->hasFile('profile_image')) {
+            $image = $request->file('profile_image');
+            $profile_image = time() . '.' . $image->getClientOriginalExtension();
+//            $destinationPath = public_path('/products_images');
+            $destinationPath = storage_path() . '/uploads/users/avatars/';
+            $image->move($destinationPath, $profile_image);
+            $create = Media::create([
+                'title' => $profile_image,
+                'type' => 'image',
+                'source' => $profile_image,
+            ]);
+            $timeline->avatar_id = $create->id;
+        }
+        $timeline->about = $request->about;
+        $timeline->name = $request->name;
+        $timeline->save();
+
+        return $this->successResponse(trans('message.profileUpdatedSuccessfully'));
+    }
+}

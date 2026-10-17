@@ -1,0 +1,76 @@
+[
+  {
+    "question": "What is Sponsorship Index?",
+    "answer": "It's a mapping tool to keep a track of sponsorship spending/earning by the users at Ayojn."
+  },
+  {
+    "question": "What is Opportunities for?",
+    "answer": "This shows existing/browsable opportunities (to be vouched) and the opportunities you can create (to be bidded for)."
+  },
+  {
+    "question": "Why is my profile pending?",
+    "answer": "Most likely because of the lack of evidence we could find to establish if you are a legitimate entity as per the information you shared."
+  },
+  {
+    "question": "How can my profile be approved?",
+    "answer": "By referring users using your unique link (found in the Recommend tab), and using a professional/business email to sign up (editable from the Profile tab)."
+  },
+  {
+    "question": "Is the marketplace at Ayojn safe?",
+    "answer": "Very much because every partner and the deal is well vetted. However, we DON’T guarantee any transaction done for the offered deals and urge due diligence."
+  },
+  {
+    "question": "What does Index represent?",
+    "answer": "Index contains the spend mapping tool by the clients and also the channels via which sponsored outreach is created. This is updated annually."
+  }
+
+  ,
+  {
+    "question": "How do I sign up and verify my account?",
+    "answer": "Register using the Sign Up form and check your email for a verification link. Complete your profile and any requested documents so we can activate your account for full access."
+  },
+  {
+    "question": "Why is my profile pending or suspended?",
+    "answer": "Profiles are reviewed to keep the marketplace trusted. If your profile is pending or suspended, complete any missing information, upload required documents, and contact support if you need help with approval."
+  },
+  {
+    "question": "How can I refer colleagues or partners?",
+    "answer": "Use the referral link found in the Recommend tab to invite colleagues. When they sign up with your link, referrals are tracked and any eligible rewards are credited according to our program rules."
+  },
+  {
+    "question": "How do I create or respond to an opportunity?",
+    "answer": "Go to the Opportunities section to create a new opportunity with a clear brief, budget, and timeline. You can also browse existing opportunities and submit a bid or response if you wish to participate."
+  },
+  {
+    "question": "What is a Vouch and how do I use it?",
+    "answer": "A Vouch is a promotional code or credit you can apply to an opportunity or offer. You can create, share, and redeem vouches from the Vouches area. Redemption requests are processed and reflected in your account once approved."
+  },
+  {
+    "question": "How do bids and negotiations work?",
+    "answer": "Place a bid on an opportunity with your proposed terms. Buyers and sellers can negotiate through the platform until both sides agree. Once a bid is accepted, payment and next steps are handled according to the opportunity terms."
+  },
+  {
+    "question": "How do payments and receipts work?",
+    "answer": "We support multiple payment options. After payment, a receipt is generated and available in your account. For any payment issues, check the payment history and contact our support team with the transaction details."
+  },
+  {
+    "question": "How do I use the cart and wishlist?",
+    "answer": "Add items or offers to your cart to review and checkout later. Use the wishlist to save items you’re interested in and move them to the cart when you’re ready to purchase or bid."
+  },
+  {
+    "question": "How do I redeem a voucher or claim a credit?",
+    "answer": "Submit a redemption request from the Vouchers or Redeem area. Our team will review and approve valid requests; approved credits will appear in your account and can be applied to eligible transactions."
+  },
+  {
+    "question": "How can I give feedback or get help?",
+    "answer": "Use the feedback or contact options in your profile to submit questions or feedback. Our support team monitors queries and will respond with guidance or next steps."
+  },
+  {
+    "question": "How do events and attendee registration work?",
+    "answer": "Browse upcoming events in the Events section. Register as an attendee to reserve a spot. Organizers can manage attendees and export attendee lists where applicable."
+  },
+  {
+    "question": "How can I share an offer, opportunity, or event with someone else?",
+    "answer": "Use the Share button on an offer, opportunity, or event to generate a shareable link you can send to colleagues or partners. Recipients can view the item directly from the link."
+  }
+]

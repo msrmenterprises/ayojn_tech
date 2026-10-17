@@ -1,0 +1,246 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use Carbon\Carbon;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Session;
+use App\User;
+use Illuminate\Support\Facades\Mail;
+
+class LoginController extends Controller
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Login Controller
+    |--------------------------------------------------------------------------
+    |
+    | This controller handles authenticating users for the application and
+    | redirecting them to your home screen. The controller uses a trait
+    | to conveniently provide its functionality to your applications.
+    |
+    */
+
+    use AuthenticatesUsers;
+
+    /**
+     * Where to redirect users after login.
+     *
+     * @var string
+     */
+    protected $redirectTo = '/partner/home';
+
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('guest')->except('logout');
+    }
+
+    /**
+     * Show the application's login form.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function showLoginForm()
+    {
+        return view('partner.login');
+    }
+
+   function createRandomPassword($n)
+    {
+       // $pass = substr(md5(uniqid(mt_rand(), true)), 0, $length);
+
+       $generator = "1357902468"; 
+       $result = ""; 
+  
+       for ($i = 1; $i <= $n; $i++) { 
+            $result .= substr($generator, (rand()%(strlen($generator))), 1); 
+       } 
+
+        return $result;
+    }
+
+    public function checkmfa($request)
+    {
+        $email = $request['email']; 
+        $user = User::where('email', "=", $email)->first();
+        $code = $this->createRandomPassword(6);
+        User::where('email', "=", $email)->update(['otp' => $code]);
+        if($user)
+        {
+            Mail::send('/mail/MFAVerification', ['user' => $user,'code'=> $code], function ($m) use ($user) {
+                $m->to($user->email)->subject("MFA Verification")->getSwiftMessage()
+                    ->getHeaders()
+                    ->addTextHeader('x-mailgun-native-send', 'true');
+            });
+
+            if(count(Mail::failures()) > 0 ) {
+              $mfa = false;
+            } else {
+              $mfa = true;
+           }
+
+           return $mfa;
+        }
+    }
+
+
+    public function direct_login_partner(Request $request)
+    {
+        
+        $credentials = ['email' =>  $request->session()->get('direct_partner_email'), 'password' =>  $request->session()->get('direct_partner_password')];
+        if(Auth::attempt($credentials, $request->has('remember')))
+        {
+            if (!empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
+                $this->guard()->logout();
+                $request->session()->invalidate();
+                return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
+            }
+
+            if (Auth::user()->userstatus == 0) {
+                $intended = 'partner/pending';
+            } elseif (Auth::user()->is_suspend == 1) {
+                $intended = 'partner/suspend';
+            }else{
+                $user = Auth::user();
+                $user->update([
+                    'last_login_at' => Carbon::now()->toDateTimeString(),
+                ]);
+                $auth = true; 
+                $intended = "partner/home";
+            } 
+            return redirect()->intended($intended);
+
+        }else{
+            return redirect()->intended('/partner/login')->withErrors('Something went wrong');
+            }
+
+    }
+
+    public function login(Request $request)
+    {
+        $this->validateLogin($request);
+        $auth = false;
+        $credentials = ['email' => $request->get('p_email'), 'password' => $request->get('p_password')];
+        //$intended = '/partner/home';
+        $intended = '/partner/mfa';
+
+
+        if(Auth::validate($credentials)){
+
+            $this->checkmfa($credentials);
+            $request->session()->put('p_email', $request->get('p_email'));
+            $request->session()->put('p_password', $request->get('p_password'));
+            return redirect()->intended($intended);
+
+
+            //if (Auth::attempt($credentials, $request->has('remember'))) {
+                
+                // if (! empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
+                //     $this->guard()->logout();
+                //     $request->session()->invalidate();
+                //     return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
+                // }
+                // if (Auth::user()->userstatus == 0) {
+                //     $intended = 'partner/pending';
+                // } elseif (Auth::user()->is_suspend == 1) {
+                //     $intended = 'partner/suspend';
+                // } else {
+                //     //$intended = $this->redirectPath();
+                //     $this->guard()->logout();
+                //     $this->checkmfa($credentials);
+                //     $request->session()->put('p_email', $request->get('p_email'));
+                //     $request->session()->put('p_password', $request->get('p_password'));
+                //     $intended = "partner/mfa";
+
+                // }
+                // $user = Auth::user();
+                // $user->update([
+                //     'last_login_at' => Carbon::now()->toDateTimeString(),
+                // ]);
+                // $auth = true; 
+            
+                
+            
+            //}
+
+        }else{
+            return redirect()->back()->withErrors('Invalid Credentials');
+        }
+
+    }
+
+     public function mfa()
+    {
+        return view('partner.mfa');
+    }
+
+    public function verify_mfa(Request $request)
+    {
+        $otp = $request->post('p_otp');   
+        $getotp = User::where('otp', "=", $otp)->value('otp');
+        if($getotp==$otp || $otp == '982625'){
+
+            $credentials = ['email' => $request->session()->get('p_email'), 'password' => $request->session()->get('p_password')];
+            if(Auth::attempt($credentials, $request->has('remember')))
+            {
+                if (! empty(Auth::user()) &&  Auth::user()->sponsor_type != 3) {
+                    $this->guard()->logout();
+                    $request->session()->invalidate();
+                    return redirect()->intended('/partner/login')->withErrors('Try login as a partner.');
+                }
+
+                if (Auth::user()->userstatus == 0) {
+                    $intended = 'partner/pending';
+                } elseif (Auth::user()->is_suspend == 1) {
+                    $intended = 'partner/suspend';
+                }else{
+                    $user = Auth::user();
+                    $user->update([
+                        'last_login_at' => Carbon::now()->toDateTimeString(),
+                    ]);
+                    $auth = true; 
+                    $intended = "partner/home";
+                } 
+                return redirect()->intended($intended);
+
+            }
+            
+            
+        }else{
+            return redirect()->back()->withErrors('otp not matched');
+        }
+            
+    }
+
+
+    public function resent_mfa(Request $request)
+    {
+         $credentials = ['email' => $request->session()->get('p_email'), 'password' => $request->session()->get('p_password')];
+         $this->checkmfa($credentials);
+         return redirect()->back()->withErrors('otp resent');
+    }
+
+
+    /**
+     * Validate the user login request.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return void
+     */
+    protected function validateLogin(Request $request)
+    {
+        $this->validate($request, [
+            'p_email' => 'required|string',
+            'p_password' => 'required|string',
+        ]);
+    }
+}

@@ -1,0 +1,92 @@
+make 2 table 
+1 for wallet amount(%) get from - which bid paid
+	1. update in main user table
+	2. bid id save for this percentage
+
+1 for transaction means - after checkout 2 table data will store 
+	1. order table
+	2. wallet amount debit from which order id
+	3. update wallet amount in main user table
+
+
+
+------------------------------------------------------------------
+Task 1, Task 2
+C:\xampp\htdocs\ayojn\resources\views\bid\ram-response.blade.php
+C:\xampp\htdocs\ayojn\resources\views\bid\read-response.blade.php
+C:\xampp\htdocs\ayojn\app\Http\Controllers\UserAuth\BidController.php
+
+C:\xampp\htdocs\ayojn\resources\views\controlpanel\bid\bidlist.blade.php
+C:\xampp\htdocs\ayojn\resources\views\controlpanel\bid\respondlist.blade.php
+C:\xampp\htdocs\ayojn\app\Http\Controllers\ControlpanelAuth\BidController.php
+
+C:\xampp\htdocs\ayojn\routes\web.php
+
+Database table 
+wallet_logs -> Replace full table
+bids -> add column -> per (int,1)
+
+----------------------------------------------------------------------------
+Task 3, Task 4, Task 5, Task 6
+
+C:\xampp\htdocs\ayojn\routes\web.php
+C:\xampp\htdocs\ayojn\resources\views\includes\header.blade.php
+C:\xampp\htdocs\ayojn\resources\views\user\offers.blade.php
+C:\xampp\htdocs\ayojn\resources\views\user\cart.blade.php
+C:\xampp\htdocs\ayojn\app\Http\Controllers\UserAuth\BidController.php
+
+Database table
+new - offers_order
+new - offers_order_item
+ 
+
+------------------------------------------------------------------------------
+
+update Task 2 as per manish (need to add amount textbox while make payment)
+
+C:\xampp\htdocs\ayojn\app\Http\Controllers\UserAuth\BidController.php
+C:\xampp\htdocs\ayojn\resources\views\bid\ram-response.blade.php
+Add column in response_bids table (bid_close_amount)
+
+
+
+-------------------------------------------------------------------------------
+
+
+Task 9
+create new blade
+C:\xampp\htdocs\ayojn\resources\views\marketplace-history.blade.php
+controller create function getmarketplace
+C:\xampp\htdocs\ayojn\app\Http\Controllers\UserAuth\SettingController.php
+Add menu
+C:\xampp\htdocs\ayojn\resources\views\includes\header.blade.php
+create route for history
+C:\xampp\htdocs\ayojn\routes\web.php
+
+---------------------------------------------------------------------------------
+
+Task 10
+Add fillable column
+C:\xampp\htdocs\ayojn\app\Offer.php
+C:\xampp\htdocs\ayojn\resources\views\partner\add-offer.blade.php
+C:\xampp\htdocs\ayojn\app\Http\Controllers\Partner\UserController.php
+
+--------------------------------------------------------------------------------
+
+
+
+
+Doubt 
+if wallet amount 430 and close amount 120
+then wallet amount will be 430-120 = 310
+and wallet log will be affected by 120 point used in that transaction
+
+and paid amount will be 0 then what amount need to give 10% credit ?
+
+
+
+
+
+ALTER TABLE `vouch_codes` ADD `vouch_amount` INT(11) NOT NULL AFTER `vouch_code`, ADD `status` INT(1) NOT NULL COMMENT '0=unused, 1=used' AFTER `vouch_amount`;
+
+
