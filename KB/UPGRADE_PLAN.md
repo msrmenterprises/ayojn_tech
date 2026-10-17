@@ -73,6 +73,15 @@ No feature is considered optional solely because its dependency is old or diffic
 - Keep mail, queue, cache, and sessions isolated in tests. Use fakes or local test drivers; do not send real email or payment requests.
 - Add or update factories/fixtures for each role and business entity without embedding real account credentials.
 
+### Baseline test and coverage status (2026-10-17)
+
+- Runtime: PHP 7.4.33; PHPUnit 7.5.20. No `.env.testing` file is present, and `phpunit.xml` does not set a database connection.
+- `tests/bootstrap.php` now creates a temporary SQLite database, sets the test connection before Laravel boots, and removes the file at shutdown. Its minimal fixture schema covers the observed startup/login-test dependencies (`buttons_setting`, `countries`, `industries`, and the credential lookup columns on `users`) without loading imported or production data.
+- An initial empty-schema run failed during boot/render because the application expects these tables. With the isolated fixtures in place, `vendor/bin/phpunit` passes: 5 tests, 8 assertions.
+- Current authentication coverage adds invalid-credential cases for the shared Offer/Receive login endpoint, Partner login, and Admin login. Valid credentials, MFA, logout, password reset, and role-specific protected-route behavior remain untested; the two original Laravel example tests are not business regression coverage.
+- Neither Xdebug nor PCOV is loaded in the PHP 7.4 CLI modules. A line-coverage report remains blocked until a compatible coverage driver is available.
+- Neither Xdebug nor PCOV is loaded in the PHP 7.4 CLI modules. A line-coverage report remains blocked until a compatible coverage driver is available.
+
 ### Test scope
 
 1. Authentication and authorization for each of the four account types: valid/invalid credentials, MFA valid/invalid, session persistence, logout, password reset, and access to role-protected routes.
@@ -148,7 +157,7 @@ No feature is considered optional solely because its dependency is old or diffic
 
 1. Confirm the modified session file is excluded from the upgrade commit; do not stage its contents.
 2. Inventory all current features and direct Composer dependencies.
-3. Run the baseline PHPUnit suite on PHP 7.4 with a dedicated test database and establish the first coverage report.
+3. Expand the passing starter suite with valid-login/MFA, logout/reset, and role-specific route tests for all four account types. Establish line coverage after a compatible coverage driver is available.
 4. Set up local PHP 8.5 and begin the Laravel 13 compatibility work only after the baseline is recorded.
 5. Review and fix MFA/session handling and Composer advisories before public staging.
 
