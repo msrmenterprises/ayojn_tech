@@ -105,4 +105,62 @@ class BidResponseWorkflowTest extends TestCase
             'in_app' => 1,
         ]);
     }
+
+    public function test_bid_owner_can_book_an_open_negotiation()
+    {
+        $owner = User::findOrFail($this->createUser('bid-negotiation-owner@example.test', 1));
+        $respondent = User::findOrFail($this->createUser('bid-negotiation-respondent@example.test', 2));
+        $bidId = DB::table('bids')->insertGetId([
+            'user_id' => $owner->id,
+            'status' => 'On',
+            'country' => 'ZZ',
+            'admin_status' => 1,
+            'is_paid' => 1,
+            'per' => 0,
+        ]);
+        $responseId = DB::table('response_bids')->insertGetId([
+            'respond_user_id' => $respondent->id,
+            'bid_id' => $bidId,
+            'description' => 'Synthetic negotiation response',
+            'portfolio_link' => 'https://example.test/negotiation',
+            'is_spam' => 0,
+            'is_accepted' => 2,
+        ]);
+
+        $response = $this->actingAs($owner, 'web')
+            ->postJson('/book-negotiation', ['bidId' => $responseId]);
+
+        $response->assertOk();
+        $this->assertSame($responseId, json_decode($response->getContent(), true));
+        $this->assertSame(3, (int) DB::table('response_bids')->where('id', $responseId)->value('is_accepted'));
+    }
+
+    public function test_bid_owner_cannot_book_a_response_outside_open_negotiation_state()
+    {
+        $owner = User::findOrFail($this->createUser('bid-negotiation-invalid-owner@example.test', 1));
+        $respondent = User::findOrFail($this->createUser('bid-negotiation-invalid-respondent@example.test', 2));
+        $bidId = DB::table('bids')->insertGetId([
+            'user_id' => $owner->id,
+            'status' => 'On',
+            'country' => 'ZZ',
+            'admin_status' => 1,
+            'is_paid' => 1,
+            'per' => 0,
+        ]);
+        $responseId = DB::table('response_bids')->insertGetId([
+            'respond_user_id' => $respondent->id,
+            'bid_id' => $bidId,
+            'description' => 'Synthetic read response',
+            'portfolio_link' => 'https://example.test/read-response',
+            'is_spam' => 0,
+            'is_accepted' => 1,
+        ]);
+
+        $this->actingAs($owner, 'web')
+            ->postJson('/book-negotiation', ['bidId' => $responseId])
+            ->assertStatus(422)
+            ->assertJsonFragment(['status' => false]);
+
+        $this->assertSame(1, (int) DB::table('response_bids')->where('id', $responseId)->value('is_accepted'));
+    }
 }

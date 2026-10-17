@@ -309,13 +309,6 @@ class OppertunityController extends Controller
             'status' => 1
         ];
 
-        //user table update user free vouch count
-        $user = User::find(Auth::user()->id);
-        $user->free_vouch = $user->free_vouch + 1;
-        $user->is_paid = 0;
-        $user->save();
-
-
         $getVouch = Vouche::where('opportunity_id', $opportunity->id)->where('offer_id', Auth::user()->id)->first();
         if (!empty($getVouch)) {
             return response()->json(['status' => 2, 'message' => "You have already vouched this opportunity"])
@@ -323,6 +316,13 @@ class OppertunityController extends Controller
         }
 
         $vouchData = Vouche::create($data);
+        if (!empty($vouchData)) {
+            $user = User::find(Auth::user()->id);
+            $user->free_vouch = $user->free_vouch + 1;
+            $user->is_paid = 0;
+            $user->save();
+        }
+
         $opportunityUser = OpportunityUser::where('opportunity_id', $opportunity->id)->get();
         if (!empty($opportunityUser)) {
             foreach ($opportunityUser as $oUser) {

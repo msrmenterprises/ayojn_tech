@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\ControlpanelAuth;
 
 use App\Country;
+use App\Exports\ArrayExport;
 use App\Http\Controllers\Controller;
 use App\Industry;
+use App\Imports\AdminUserRowsImport;
 use App\ReferAFriend;
 use App\SponsorrSpecify;
 use App\SponsorrSpecifyList;
@@ -21,6 +23,26 @@ use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
+    private const USER_EXPORT_HEADINGS = [
+        'Email',
+        'Sponsor Type',
+        'Sponsor For',
+        'Sponsor Deal Size',
+        'Spex Plateform',
+        "Sponsor's industry",
+        'Country of origin',
+        'Country Directed To',
+        'Register Date',
+        'Last Login',
+    ];
+
+    private const REFERRAL_EXPORT_HEADINGS = [
+        'Name',
+        'User Email',
+        'Mobile No',
+        'Email',
+        'Refer Date',
+    ];
 
     public function index()
     {
@@ -323,7 +345,9 @@ class UserController extends Controller
                 if ($value->sponsor_industry == 'test' || $value->sponsor_industry == '') {
                     $userData[$key]["Sponsor's industry"] = '';
                 } else {
-                    $userData[$key]["Sponsor's industry"] = $value->industry->name;
+                    $userData[$key]["Sponsor's industry"] = $value->industry
+                        ? $value->industry->name
+                        : '';
                 }
                 if ($value->country_name) {
                     $userData[$key]["Country of origin"] = $value->country_name->country_name;
@@ -338,13 +362,12 @@ class UserController extends Controller
                 $userData[$key]["Register Date"] = Date('d-m-Y', strtotime($value->created_at));
                 $userData[$key]["Last Login"] = $value->last_login_at;
             }
-            Excel::create('User List', function ($excel) use ($userData) {
-                $excel->sheet('Sheet 1', function ($sheet) use ($userData) {
-
-                    $sheet->fromArray($userData);
-                });
-            })->export('xls');
         }
+
+        return Excel::download(
+            new ArrayExport($userData, self::USER_EXPORT_HEADINGS),
+            'User List.xlsx'
+        );
     }
 
     function exportReferUser(request $request)
@@ -352,22 +375,21 @@ class UserController extends Controller
         $userlist = ReferAFriend::with('userDetail')->orderBy('id', 'desc')->get();
 
         $userData = [];
-        if (! empty($userlist->first())) {
-            foreach ($userlist as $key => $value) {
-                $value = $value->toArray();
-
-                $userData[$key]['Name'] = $value['user_detail']['name'];
-                $userData[$key]['User Email'] = $value['user_detail']['email'];
-                $userData[$key]['Mobile No'] = $value['user_detail']['phone_no'];
-                $userData[$key]['Email'] = $value['email_address'];
-                $userData[$key]["Refer Date"] = Date('d-m-Y', strtotime($value['created_at']));
-            }
-            Excel::create('User Refer List', function ($excel) use ($userData) {
-                $excel->sheet('Sheet 1', function ($sheet) use ($userData) {
-                    $sheet->fromArray($userData);
-                });
-            })->export('xls');
+        foreach ($userlist as $key => $value) {
+            $user = $value->userDetail;
+            $userData[$key] = [
+                'Name' => $user ? $user->name : '',
+                'User Email' => $user ? $user->email : '',
+                'Mobile No' => $user ? $user->phone_no : '',
+                'Email' => $value->email_address,
+                'Refer Date' => date('d-m-Y', strtotime($value->created_at)),
+            ];
         }
+
+        return Excel::download(
+            new ArrayExport($userData, self::REFERRAL_EXPORT_HEADINGS),
+            'User Refer List.xlsx'
+        );
     }
 
     public function importUser()
@@ -377,115 +399,103 @@ class UserController extends Controller
 
     public function importExcel(request $request)
     {
-        $errors_data = [];
-        if ($request->hasFile('lead_file')) {
-            $path = $request->file('lead_file')->getRealPath();
-            $data = Excel::load($path, function ($reader) {
-            })->get();
-            $insert = [];
-            $message['msg'] = "";
-
-            if (! empty($data) && $data->count()) {
-
-                foreach ($data as $key => $value) {
-
-                    $i = $key + 2;
-                    // dd($data);
-                    if ($value['sponsorr_type'] != '') {
-
-                        if ($value['sponsorr_type'] == 'Manage Or Receive Sponsorship') {
-                            $userType = 2;
-                        } else {
-                            $userType = 1;
-                        }
-                        $email = $value['email'];
-                        $userData = User::where('email', $email)->first();
-                        if (empty($userData)) {
-                            $country = Country::where('country_name', $value['country_of_origin'])->first();
-                            if (! empty($country)) {
-                                $country_directed_to = Country::where('country_name', $value['country_directed_to'])
-                                    ->first();
-                                if (! empty($country_directed_to)) {
-                                    $industriesData = Industry::where('name', $value['sponsors_industry'])->first();
-                                    if (! empty($industriesData)) {
-                                        $sponsorForEvent = ['Conference', 'Music Festival', 'Tradeshow', 'Exhibition'];
-                                        $sponsorForCampaign = ['Online', 'Offline', 'Social Media', 'Infleucer'];
-                                        $sponsorForContent = ['Blog', 'Video', 'Inforgraphics', 'Case Studies', 'Whitpapers', 'Articles', 'Interviews', 'Memes/ GIFs'];
-                                        $sponsorForSportTeam = ['Football', 'Regional', 'Adventure Sports', 'Racetrack', 'International'];
-                                        // if(($value['sponsor_for'] == 'Event' && in_array($value['spex_platform'],$sponsorForEvent))||($value['sponsor_for'] == 'Campaign' && in_array($value['spex_platform'],$sponsorForCampaign))||($value['sponsor_for'] == 'Content' && in_array($value['spex_platform'],$sponsorForContent))||($value['sponsor_for'] == 'Sports Team' && in_array($value['spex_platform'],$sponsorForSportTeam))){
-                                        $spexPlateform = $value['spex_platform'];
-
-                                        $userDataArray = [
-                                            'name' => 'test',
-                                            'email' => $email,
-                                            'sponsor_type' => $userType,
-                                            'country' => $country['country_code'],
-                                            'sponsor_for' => $value['sponsor_for'],
-                                            'sponsor_budget' => $value['sponsor_deal_size'],
-                                            'password' => Hash::make('123456'),
-                                            'sponsor_industry' => $industriesData['id'],
-                                            'userstatus' => 1,
-                                            'email_verified' => 1,
-                                            'sponsor_country' => $country_directed_to['country_code']
-                                        ];
-                                        $userInsertData = User::create($userDataArray);
-                                        if (! empty($userInsertData)) {
-                                            $SponsorrSpecifyList = SponsorrSpecifyList::where('specify_name',
-                                                $value['spex_platform'])->first();
-                                            if (! empty($SponsorrSpecifyList)) {
-                                                $specifyUser_list = [
-                                                    'specify_name' => $SponsorrSpecifyList['id'],
-                                                    'user_id' => $userInsertData->id
-                                                ];
-                                                $specifyUser = SponsorrSpecify::create($specifyUser_list);
-                                            } else {
-                                                $message['msg'] .= " Line No $i : Spex Platform not inserted";
-                                            }
-                                        } else {
-                                            $message['msg'] .= " Line No $i : User Not Registered";
-                                        }
-                                        // }else{
-                                        //     $message['msg'] .= " Line No $i : Spex Plateform not found";
-                                        // }
-                                    } else {
-                                        $message['msg'] .= " Line No $i : Industry not Found";
-                                    }
-                                } else {
-                                    $message['msg'] .= " Line No $i : Sponsor Country not Found";
-                                }
-                            } else {
-                                $message['msg'] .= " Line No $i : Country not Found";
-                            }
-                        } else {
-                            $message['msg'] .= " Line No $i : User already exists";
-                        }
-                    }
-
-                }
-            }
-            if ($message['msg'] == '') {
-                return back()->with('success', 'Users Upload successfully!');
-            } else {
-                return back()->with('error', $message['msg']);
-            }
-
+        $validator = Validator::make($request->all(), [
+            'lead_file' => 'required|file|mimes:csv,txt,xls,xlsx',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
         }
+
+        $import = new AdminUserRowsImport();
+        Excel::import($import, $request->file('lead_file'));
+        $data = $import->rows();
+        if ($data->isEmpty()) {
+            return back()->with('error', 'No importable users found.');
+        }
+
+        $defaultUserType = DB::table('user_type')->orderBy('id')->value('id');
+        if (! $defaultUserType) {
+            return back()->with('error', 'No user type is configured for imported users.');
+        }
+
+        $message = '';
+        foreach ($data as $key => $value) {
+            $line = $key + 2;
+            if (! isset($value['sponsorr_type']) || trim($value['sponsorr_type']) === '') {
+                continue;
+            }
+
+            $userType = $value['sponsorr_type'] == 'Manage Or Receive Sponsorship' ? 2 : 1;
+            $email = $value['email'];
+            if (User::where('email', $email)->exists()) {
+                $message .= " Line No $line : User already exists";
+                continue;
+            }
+
+            $country = Country::where('country_name', $value['country_of_origin'])->first();
+            if (! $country) {
+                $message .= " Line No $line : Country not Found";
+                continue;
+            }
+
+            $countryDirectedTo = Country::where('country_name', $value['country_directed_to'])->first();
+            if (! $countryDirectedTo) {
+                $message .= " Line No $line : Sponsor Country not Found";
+                continue;
+            }
+
+            $industry = Industry::where('name', $value['sponsors_industry'])->first();
+            if (! $industry) {
+                $message .= " Line No $line : Industry not Found";
+                continue;
+            }
+
+            $user = new User([
+                'name' => 'test',
+                'email' => $email,
+                'sponsor_type' => $userType,
+                'country' => $country->country_code,
+                'sponsor_for' => $value['sponsor_for'],
+                'sponsor_budget' => $value['sponsor_deal_size'],
+                'password' => Hash::make('123456'),
+                'sponsor_industry' => $industry->id,
+                'userstatus' => 1,
+                'sponsor_country' => $countryDirectedTo->country_code,
+            ]);
+            $user->user_type = $defaultUserType;
+            $user->email_verified = 1;
+            $user->save();
+
+            $specification = SponsorrSpecifyList::where('specify_name', $value['spex_platform'])->first();
+            if ($specification) {
+                SponsorrSpecify::create([
+                    'specify_name' => $specification->id,
+                    'user_id' => $user->id,
+                ]);
+            } else {
+                $message .= " Line No $line : Spex Platform not inserted";
+            }
+        }
+
+        if ($message === '') {
+            return back()->with('success', 'Users Upload successfully!');
+        }
+
+        return back()->with('error', $message);
     }
 
-    // function dataExport(){
-    //     $userlist=SponsorrSpecifyList::all();
-    //     $userData=[];
-    //     if(!empty($userlist->first())){
-    //         foreach($userlist as $key =>$value){
-    //                 $userData[$key]['Spex Platform'] = $value->specify_name;
-    //                 $userData[$key]['Sponsor For'] = $value->sponsorr_type;
-    //             }
-    //             Excel::create('Sample Data List', function ($excel) use ($userData) {
-    //                     $excel->sheet('Sheet 1', function ($sheet) use ($userData) {
+    public function dataExport()
+    {
+        $rows = SponsorrSpecifyList::all()->map(function ($item) {
+            return [
+                'Spex Platform' => $item->specify_name,
+                'Sponsor For' => $item->sponsorr_type,
+            ];
+        })->all();
 
-    //                         $sheet->fromArray($userData);
-    //                     });
-    //                 })->export('xls');
-    //         }
-    // }
+        return Excel::download(
+            new ArrayExport($rows, ['Spex Platform', 'Sponsor For']),
+            'Sample Data List.xlsx'
+        );
+    }
 }

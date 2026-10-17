@@ -397,7 +397,7 @@ class UserController extends Controller
             }
             $user->save();
 
-            return json_encode(['status' => $user->is_suspand, 'msg' => trans("User status has been updated successfully"), 'user_id' => $request->user_id]);
+            return json_encode(['status' => $user->is_suspend, 'msg' => trans("User status has been updated successfully"), 'user_id' => $request->user_id]);
         } else {
             return json_encode(['err_msg' => 'User id  is required.', 'user_id' => $request->user_id]);
         }

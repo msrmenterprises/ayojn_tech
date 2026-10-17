@@ -180,12 +180,13 @@ class BidController extends Controller
     {
         $bidId = $request->bidId;
 
-        $bids = ResponseBid::with(['bid', 'userDetail', 'userDetail.country_name'])->where('id', $bidId)->first();
-            if ($bids->is_accepted = 2) {
-                $bids->is_accepted = 3;
-                $bids->save();
-            }
+        $bidResponse = ResponseBid::findOrFail($bidId);
+        if ($bidResponse->is_accepted != 2) {
+            return response()->json(['status' => false, 'message' => 'Only open negotiations can be booked.'], 422);
+        }
 
+        $bidResponse->is_accepted = 3;
+        $bidResponse->save();
         return response()->json($bidId);
     }
     
@@ -1272,13 +1273,18 @@ class BidController extends Controller
 
         $voucher_code = $request->voucher_code;
 
-        $bids = \App\ResponseBid::with(['bid', 'userDetail', 'userDetail.country_name'])->where('id', $bidId)->first();
+        if (empty($bidId)) {
+            return response()->json(['status' => false, 'message' => 'Response id is required.'], 422);
+        }
 
-            if ($bids->is_accepted = 3) {
-                $bids->is_accepted = 4;
-                $bids->bid_close_amount = $bid_close_amount;
-                $bids->save();
-            }
+        $bids = ResponseBid::findOrFail($bidId);
+        if ($bids->is_accepted != 3) {
+            return response()->json(['status' => false, 'message' => 'Only booked responses can be paid.'], 422);
+        }
+
+        $bids->is_accepted = 4;
+        $bids->bid_close_amount = $bid_close_amount;
+        $bids->save();
 
             $flag = 0;
 

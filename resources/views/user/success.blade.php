@@ -119,22 +119,19 @@ h1, .h1 {
 }
 </style>
 
-@php
-    $collection_id = DB::table('direct_payment')->where('transaction_reference',$_GET['transaction_reference'])->value('collection_id');
-@endphp
 <div class="container">
         <div class="row justify-content-center" style="display: flex; justify-content: center; align-items: center;">
             <div class="col-md-5">
             <div class="message-box _success">
                     <i class="fa fa-check-circle" aria-hidden="true"></i>
                     <h1 _ngcontent-ng-c259542078="" class="fw-bold mb-3"><!----><span _ngcontent-ng-c259542078=""> Transaction Success! </span><!----></h1>
-                <div _ngcontent-ng-c259542078="" class="amount-badge mx-auto"><span _ngcontent-ng-c259542078="" class="text-secondary fs-6">Total Payment</span><span _ngcontent-ng-c259542078="" class="d-block fs-3 fw-bold text-success">USD <?= $_GET['amount']??0; ?></span><!----></div>
-                <div _ngcontent-ng-c259542078="" class="info-grid"><div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Order Number</span><span _ngcontent-ng-c259542078="" class="value">AYOJN-<?= $collection_id??0; ?></span></div>
-                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Ref Number</span><span _ngcontent-ng-c259542078="" class="value"><?= $_GET['transaction_reference']??''; ?></span></div>
-                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payment Time</span><span _ngcontent-ng-c259542078="" class="value"><?= $_GET['payment_date']??''; ?></span></div>
-                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payment Method</span><span _ngcontent-ng-c259542078="" class="value"><?= $_GET['payment_mode']??''; ?></span></div>
-                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Receiver Name</span><span _ngcontent-ng-c259542078="" class="value"><?= $_GET['receiver_name']??''; ?></span></div>
-                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payer Name</span><span _ngcontent-ng-c259542078="" class="value"><?= $_GET['payer_name']??''; ?></span></div></div>
+                <div _ngcontent-ng-c259542078="" class="amount-badge mx-auto"><span _ngcontent-ng-c259542078="" class="text-secondary fs-6">Total Payment</span><span _ngcontent-ng-c259542078="" class="d-block fs-3 fw-bold text-success">USD {{ $paymentData['amount'] ?? 0 }}</span><!----></div>
+                <div _ngcontent-ng-c259542078="" class="info-grid"><div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Order Number</span><span _ngcontent-ng-c259542078="" class="value">AYOJN-{{ $collectionId ?? 0 }}</span></div>
+                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Ref Number</span><span _ngcontent-ng-c259542078="" class="value">{{ $paymentData['transaction_reference'] ?? '' }}</span></div>
+                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payment Time</span><span _ngcontent-ng-c259542078="" class="value">{{ $paymentData['payment_date'] ?? '' }}</span></div>
+                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payment Method</span><span _ngcontent-ng-c259542078="" class="value">{{ $paymentData['payment_mode'] ?? '' }}</span></div>
+                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Receiver Name</span><span _ngcontent-ng-c259542078="" class="value">{{ $paymentData['receiver_name'] ?? '' }}</span></div>
+                <div _ngcontent-ng-c259542078="" class="info-item"><span _ngcontent-ng-c259542078="" class="label">Payer Name</span><span _ngcontent-ng-c259542078="" class="value">{{ $paymentData['payer_name'] ?? '' }}</span></div></div>
             
                 <br/>
                 <a href="{{$redirection}}" class="btn btn-success"> Back</a>
