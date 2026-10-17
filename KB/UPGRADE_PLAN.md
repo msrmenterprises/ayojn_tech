@@ -1,7 +1,7 @@
 # Laravel and PHP Upgrade Plan
 
 **Status:** Planning  
-**Working branch:** `app_upgrade`  
+**Working branch:** `phase4_upgrades`
 **Plan date:** 2026-10-17
 
 This plan keeps all existing features in scope by default. Do not remove, bypass, or disable a feature without documenting the blocker, explaining the user impact, and getting the owner's approval.
@@ -127,9 +127,9 @@ No feature is considered optional solely because its dependency is old or diffic
 - No dependency was changed in this readiness branch, no advisory was treated as an accepted risk, and no production migration or mail configuration was changed. Each finding remains open for remediation and verification during the staged framework/dependency upgrade before staging or production.
 - The audit command exits nonzero because advisories are present; this is an audit finding, not a passing security gate.
 
-## Phase 4: Upgrade PHP and Laravel on `app_upgrade`
+## Phase 4: Upgrade PHP and Laravel on `phase4_upgrades`
 
-1. Install/configure PHP 8.5 locally alongside PHP 7.4 so the old baseline can still be run when needed.
+1. **Complete (2026-10-17):** PHP 8.5.11 is installed from Homebrew Core alongside the runnable PHP 7.4.33 baseline. Use `/opt/homebrew/opt/php/bin/php` for PHP 8.5 and `/opt/homebrew/opt/php@7.4/bin/php` for PHP 7.4; do not change the baseline interpreter implicitly.
 2. Upgrade one Laravel major-version step at a time, following the official guide for each step. At every milestone:
    - update only the required framework/dependency constraints;
    - regenerate `composer.lock` in the local upgrade environment;
@@ -141,6 +141,12 @@ No feature is considered optional solely because its dependency is old or diffic
 5. Do not edit only `composer.json` to claim PHP 8.5 support. Composer requirements, locked dependencies, runtime behavior, and tests must all agree.
 
 **Gate:** The application installs and runs under the same PHP 8.5 runtime selected for staging, all approved features pass, and platform/audit checks have been reviewed.
+
+**Phase 4 checkpoint (2026-10-17):** Work is on `phase4_upgrades`, based on `main` at `4f8c202`. The first framework increment is complete locally: Laravel 5.6.40 → 5.7.29, using the official [Laravel 5.7 upgrade guide](https://laravel.com/docs/5.7/upgrade). The custom user password-reset handler now passes the request to Laravel's updated reset-response method, and the Laravel 5.7 cache `.gitignore` layout is in place. The full PHP 7.4.33 suite passes (**161 tests, 786 assertions**) and the updated lock passes PHP 7.4 platform checks.
+
+- The PHP 8.5.11 runtime and required extensions are present, but `composer check-platform-reqs --lock` correctly still rejects Laravel 5.7.29 because it requires PHP `^7.1.3`. Do not claim PHP 8.5 app compatibility until a later Laravel step supports it; keep running the legacy suite with the explicit PHP 7.4 binary in the meantime.
+- The Laravel 5.7 dependency resolution required Composer's `--no-blocking` flag for this local update because the framework requires advisory-flagged Carbon 1. The flag was used only for that command; no persistent advisory bypass was configured and no risk was accepted. Re-audit before each checkpoint and keep all unresolved findings blocked from staging/production.
+- The new lock currently reports 78 advisories across 13 production packages (7 critical, 24 high, 42 medium, 5 low); `KB/dependency_advisory_review.csv` records the current versions and counts. Laravel 5.7 also requires Guzzle 6, so Guzzle moved from 7.9.2 to 6.5.8; test the agent API integration before proceeding.
 
 ## Phase 5: Database compatibility
 
@@ -176,7 +182,7 @@ No feature is considered optional solely because its dependency is old or diffic
 2. **Complete:** Addressed the Phase 3 fixed-MFA and plaintext-password session blockers with short-lived challenges and focused authentication regression tests. Local schema and application regression checks pass; production mail/MFA verification remains outstanding.
 3. Before production validation, apply the additive migration through the approved deployment process and configure the production mail transport and admin-managed demo inbox/account list. The critical/high Composer advisories have been inventoried package by package in `KB/dependency_advisory_review.csv`; remediation or explicit approved-risk decisions remain outstanding.
 4. Finish and obtain approval for the workflow inventory, including remaining guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
-5. After the Phase 3 and inventory decisions are recorded, prepare PHP 8.5 locally and begin the Laravel upgrade one major version at a time. Preserve the current tested baseline for comparison.
+5. **In progress:** PHP 8.5 is installed and the Laravel 5.6 → 5.7 checkpoint passes on PHP 7.4. Continue one framework step at a time, preserving the PHP 7.4 test baseline until the framework and dependency graph support PHP 8.5.
 
 ## Explicitly out of scope until approved
 
