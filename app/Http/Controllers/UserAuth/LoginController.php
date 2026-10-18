@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use DB;
 use Hash;
 use App\User;
@@ -187,7 +188,7 @@ class LoginController extends Controller
         ]);
 
         $previousUrl = url()->previous();
-        if (str_contains($previousUrl, '/profile/')) {
+        if (Str::contains($previousUrl, '/profile/')) {
             $username = str_replace(url('/profile/') . '/', '', $previousUrl);
             $usernameCheck = User::where('username', $username)->first();
             if ($usernameCheck) {

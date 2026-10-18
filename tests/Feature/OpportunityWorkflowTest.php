@@ -196,6 +196,51 @@ class OpportunityWorkflowTest extends TestCase
         $this->assertSame(0, DB::table('wallet_logs')->where('user_id', $user->id)->count());
     }
 
+    public function test_new_opportunity_gateway_failure_does_not_create_payment_or_debit_wallet()
+    {
+        $user = User::findOrFail($this->createUser('opportunity-gateway-failure@example.test', 2));
+        $user->wallet_balance = 50;
+        $user->save();
+
+        $controller = new class extends OppertunityController {
+            public function sendRequest($data)
+            {
+                return ['error' => 'synthetic gateway failure'];
+            }
+        };
+        $this->app->instance(OppertunityController::class, $controller);
+
+        $this->actingAs($user, 'web')
+            ->postJson('/add-new-opportunity-paynow', [
+                'amount' => 25,
+                'wallet' => 10,
+                'voucher_code' => '',
+                'opportunity_country' => 'ZZ',
+                'opportunity_city' => 123,
+                'opportunity_industry' => 999,
+                'hashtags' => 'syntheticgatewayfailure',
+                'reserved' => 1,
+                'reserved_year' => 1,
+            ])
+            ->assertStatus(502)
+            ->assertJson([
+                'flag' => 0,
+                'link' => '',
+                'error' => 'The payment gateway is temporarily unavailable. Please try again.',
+            ]);
+
+        $this->assertDatabaseMissing('opportunities', [
+            'hashtag' => '#syntheticgatewayfailure',
+            'receiver_id' => $user->id,
+        ]);
+        $this->assertDatabaseMissing('direct_payment', [
+            'user_id' => $user->id,
+            'form_name' => 'build_hashtag',
+        ]);
+        $this->assertEquals(50, (float) DB::table('users')->where('id', $user->id)->value('wallet_balance'));
+        $this->assertSame(0, DB::table('wallet_logs')->where('user_id', $user->id)->count());
+    }
+
     public function test_wallet_and_voucher_vouch_payment_deducts_balance_and_marks_code_used()
     {
         $user = User::findOrFail($this->createUser('wallet-vouch@example.test', 1));

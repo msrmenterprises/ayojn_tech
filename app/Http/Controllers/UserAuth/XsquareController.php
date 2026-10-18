@@ -914,10 +914,12 @@ class XsquareController extends Controller
                 ->update(array('used_by'=>Auth::user()->id,'status'=>1));
             }
 
-            if($update){
-                $userid = Auth::user()->id;
-                CommonHelper::userGetAyojanReward("marketplace_payment", $userid, $details->marketplace_id,4); 
-            }    
+            CommonHelper::userGetAyojanReward(
+                "marketplace_payment",
+                Auth::user()->id,
+                $details->marketplace_id,
+                4
+            );
 
             $remove = DB::table('cart')->where('user_id',Auth::user()->id)->delete();
             $redirection = "marketplace-history";

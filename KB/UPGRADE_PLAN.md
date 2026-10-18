@@ -1,8 +1,19 @@
 # Laravel and PHP Upgrade Plan
 
-**Status:** Planning  
-**Working branch:** `phase4_upgrades`
-**Plan date:** 2026-10-17
+**Status:** Production is deployed and validated on the legacy stack; local framework/PHP upgrade remains in progress
+**Working branch:** `phase4_upgradev1`
+**Plan date:** 2026-10-18
+
+## Next action: manually smoke-test the Laravel 6 checkpoint
+
+Production is already deployed and has been validated as working. Laravel 6.20.44 is now installed locally on PHP 7.4.33, and the full PHPUnit suite passes. **Do not change production or the `main` branch for this upgrade.**
+
+1. On the isolated `phase4_upgradev1` branch, complete the manual regression checklist in Phase 4 using the local test environment, synthetic data, and fake/sandbox integrations. Do not use production accounts, production data, or live payment/mail services.
+2. Record pass/fail results and any issue found. Fix failures and rerun the full PHPUnit suite before continuing.
+3. Once the Laravel 6 manual checks pass, continue to Laravel 7 as the next major-version step. Keep PHP 7.4 for Laravel 6-8; plan PHP 8.0+ for Laravel 9, PHP 8.1+ for Laravel 10, PHP 8.2+ for Laravel 11-12, and PHP 8.3+ for Laravel 13. The planned final target remains PHP 8.5 and Laravel 13.
+4. Keep production and `main` untouched. Laravel 6's dependency audit is still failing with unresolved advisories; its lock is for local upgrade testing only and must not be deployed.
+
+**Success condition before Laravel 7:** Laravel 6.20.44 boots on PHP 7.4.33; the full PHPUnit suite and manual regression checklist pass; Composer validation/platform checks pass; coverage and audit results are recorded; and the Laravel 6 checkpoint is committed on the isolated branch. Resolve or record the critical/high audit blockers before any public staging or deployment.
 
 This plan keeps all existing features in scope by default. Do not remove, bypass, or disable a feature without documenting the blocker, explaining the user impact, and getting the owner's approval.
 
@@ -10,21 +21,56 @@ This plan keeps all existing features in scope by default. Do not remove, bypass
 
 Move the application from Laravel 5.6/PHP 7.x to a maintained Laravel and PHP release, preserve the current business workflows and data, establish regression tests and coverage, and deploy repeatably to Hostinger with a tested rollback path.
 
+## Core intent: keep the product; modernize its support base
+
+This is a platform-maintenance upgrade, not a product rewrite. The application should retain its existing user-visible features, workflows, business rules, and data. We are upgrading Laravel, PHP, and incompatible dependencies so the same product can continue to be maintained and secured on supported software.
+
+- Do not remove a feature or change its intended behavior just because its current package is old. Inventory each workflow, retain it, and replace or adapt unsupported dependencies where possible.
+- Add regression tests around existing behavior before changing the code that implements it. A feature is not considered retained merely because its route still exists; its important success, failure, authorization, and data cases must continue to work.
+- Do not add Laravel 13 capabilities (such as AI integrations) merely because the target framework offers them. They are unrelated to this upgrade unless separately requested.
+- If a feature cannot be retained safely, document the exact incompatibility and user impact and get the owner's approval before deferring or removing it.
+- A supported version is not a permanent version. Laravel has a regular major-release cadence and PHP branches have finite support windows, so long-term feature retention requires routine dependency updates and future framework/runtime upgrades as well.
+
 ## Recommended target
 
-- Target **Laravel 13 on PHP 8.5**, subject to a dependency compatibility inventory and local tests.
-- Hostinger currently offers PHP 8.5. Laravel 13 supports PHP 8.3-8.5 and lists security fixes through March 17, 2028. Laravel 12's security support ends February 24, 2027, so Laravel 13 is the preferable target in the current planning window.
+- **Current target (2026-10-18): Laravel 13 on PHP 8.5**, subject to dependency compatibility inventory, Hostinger runtime/extension confirmation, and local tests. This is a target for the upgraded application, not a request to change the working production installation now.
+- Laravel 13 supports PHP 8.3-8.5 and lists security fixes through March 17, 2028. Laravel 12's security support ends February 24, 2027; therefore Laravel 13 offers the later support end date among these released choices. PHP 8.5 is in the PHP project's currently supported branches. PHP itself has two years of active support followed by two years of security-only support.
+- **Runway caveat:** Laravel 13's currently published security-fix window ends about 17 months after this plan date. This is a materially safer and more maintainable target than the unsupported legacy stack, but it is not a multi-year freeze. Keep the application's features stable while planning the next Laravel major before Laravel 13's security support ends; do not select an unreleased version as the target.
 - Follow Laravel's major-version upgrade guides in sequence. Do not try to jump by changing only the PHP or Laravel version constraints.
 - Official references:
   - [Laravel 13 release and support policy](https://laravel.com/docs/13.x/releases)
   - [Laravel 13 upgrade guide](https://laravel.com/docs/13.x/upgrade)
   - [PHP supported versions](https://www.php.net/supported-versions.php)
 
+## Stack strategy: provisional recommendation
+
+**Recommendation: keep the core application on PHP/Laravel for this upgrade; do not start a full rewrite now.** This is a risk-based decision, not a claim that the current upgrade is easy or that Laravel must be used forever.
+
+### Why an incremental Laravel upgrade is the better current option
+
+- Production is already deployed and validated on Hostinger as a Laravel/PHP application. The current source uses Laravel's routing, middleware, authentication/guards, validation, database access, scheduling, mail, and filesystem conventions. Replacing the framework would require rebuilding these foundations as well as the business features.
+- `KB/workflow_inventory.csv` maps 19 major workflows, including four account types, marketplace and wallet operations, multiple payment/callback paths, partner/admin operations, imports/exports, and scheduled jobs. It is still an initial map: the plan records unresolved guard/role boundaries, table mappings, and integration behavior. Those unknowns make a rewrite particularly risky because the team would first have to reverse-engineer and then reproduce the existing behavior.
+- A useful regression suite exists and has grown to 169 tests, but the recorded 32.34% application line coverage is below the deferred 80% target. This gives the Laravel upgrade a starting safety net, but is not enough evidence to assume a full rewrite could preserve every business rule.
+- The current Laravel 5.8 dependency lock has a substantial advisory backlog (77 advisories recorded at the 2026-10-17 checkpoint), and several older integrations need compatible replacements or upgrades. These are real costs of staying, but a new stack would still require replacing and retesting the same integrations, securing the same business workflows, and maintaining a new dependency graph.
+
+### Cost and longevity trade-off
+
+- **Near term:** upgrading from Laravel 5.8 to a supported release is not a small or automatic change. It requires major-version steps, dependency compatibility work, and regression testing, especially for auth, payments, imports/exports, and scheduled behavior.
+- **After catching up:** keeping dependencies current and reviewing each release before support expires should make future upgrades smaller than this long-delayed catch-up. Laravel's published policy provides 18 months of bug fixes and two years of security fixes, so this is an ongoing maintenance practice—not a one-time upgrade that guarantees support indefinitely.
+- **Full replatform:** offers a chance to redesign architecture, but also creates a parallel implementation and data-migration project. It does not eliminate framework/PHP updates. It may also require different hosting, deployment, monitoring, and operational expertise; confirm those costs before choosing another stack.
+
+### Reconsider a different stack only if
+
+The supported Laravel/PHP path cannot meet a documented product or hosting requirement; the team cannot sustainably maintain PHP/Laravel; or a measured total-cost comparison shows that gradual replacement is less risky and less costly than upgrading. Before approving a rewrite, complete the workflow/schema/integration inventory, improve regression coverage for critical flows, estimate both options, and prove a low-risk end-to-end workflow on the proposed stack. If migration is justified, prefer a gradual, boundary-by-boundary replacement over a big-bang rewrite.
+
+**Decision for the current work:** proceed with the local `phase4_upgradev1` Laravel/PHP upgrade and retain production and `main` unchanged. Reassess the stack after the dependency compatibility inventory and an end-to-end compatibility milestone; do not treat Laravel 13/PHP 8.5 as a commitment to Laravel forever.
+
 ## Verified starting point
 
 - Current framework: Laravel 5.6.40. `composer.json` requires PHP `^7.1.3`.
 - Local app runtime used for setup: PHP 7.4.33.
 - Hostinger web runtime is currently selected as PHP 7.4. The account also has PHP 8.0-8.5 options.
+- **Latest deployment (owner-confirmed, 2026-10-18):** The application is deployed on Hostinger production with PHP 7.4 and an old Laravel version; the owner confirms it has been validated and is working. Treat this as the production legacy baseline, not as completion of the framework upgrade. Record the exact deployed Laravel version and commit when available; do not record credentials or other secrets.
 - Hostinger default SSH/Composer PHP is 8.1.34. PHP 7.4 CLI is available at `/opt/alt/php74/usr/bin/php`, and Composer runs under that binary.
 - PHP 7.4 reached end of life in 2022. It may be used only as a compatibility bridge for isolated tests, not as the long-term public runtime.
 - The Hostinger PHP 7.4 extension screenshots show PDO/PDO MySQL, mbstring, cURL, OpenSSL, tokenizer, XML, XMLReader, XMLWriter, DOM, fileinfo, GD, and ZIP enabled.
@@ -127,7 +173,7 @@ No feature is considered optional solely because its dependency is old or diffic
 - No dependency was changed in this readiness branch, no advisory was treated as an accepted risk, and no production migration or mail configuration was changed. Each finding remains open for remediation and verification during the staged framework/dependency upgrade before staging or production.
 - The audit command exits nonzero because advisories are present; this is an audit finding, not a passing security gate.
 
-## Phase 4: Upgrade PHP and Laravel on `phase4_upgrades`
+## Phase 4: Upgrade PHP and Laravel on `phase4_upgradev1`
 
 1. **Complete (2026-10-17):** PHP 8.5.11 is installed from Homebrew Core alongside the runnable PHP 7.4.33 baseline. Use `/opt/homebrew/opt/php/bin/php` for PHP 8.5 and `/opt/homebrew/opt/php@7.4/bin/php` for PHP 7.4; do not change the baseline interpreter implicitly.
 2. Upgrade one Laravel major-version step at a time, following the official guide for each step. At every milestone:
@@ -140,7 +186,30 @@ No feature is considered optional solely because its dependency is old or diffic
 4. Keep the database schema and business behavior stable during framework upgrades; handle database-version changes in Phase 5.
 5. Do not edit only `composer.json` to claim PHP 8.5 support. Composer requirements, locked dependencies, runtime behavior, and tests must all agree.
 
-**Gate:** The application installs and runs under the same PHP 8.5 runtime selected for staging, all approved features pass, and platform/audit checks have been reviewed.
+### Repeatable upgrade and verification cycle
+
+Run this cycle for **every Laravel major-version step and every PHP runtime change**. Do not begin the next step until the current one passes and its evidence is recorded.
+
+1. **Protect the baseline.** Work only on the isolated upgrade branch; confirm and record the starting commit and current Laravel/PHP versions. Keep `main` and production untouched. Confirm the test database is isolated and its name contains `_test_`. Use sanitized data, never production credentials or live payment/mail integrations.
+2. **Set the step's target.** Read that Laravel major's official upgrade guide and list the required framework, PHP, and package changes. Identify affected workflows and the tests/manual checks that cover them. Keep one Laravel major per step; separate a PHP runtime change into its own checkpoint where feasible.
+3. **Make the upgrade.** Change only the framework and dependencies required for that step. Regenerate and commit the lockfile. Do not use `--ignore-platform-reqs` or suppress failures to force an install. Keep business behavior and database schema unchanged unless a separately reviewed migration is required.
+4. **Check install and runtime.** Confirm `php -v`, `composer --version`, `php artisan --version`, and `composer check-platform-reqs` use/validate the intended runtime. Run `composer validate` and ensure the application boots locally. If an interim runtime is not installed or a dependency does not support PHP 8.5 yet, use a locally installed PHP version supported by that milestone; do not assume PHP 8.5 works just because it is the final target.
+5. **Run automated regression tests.** Run the **full PHPUnit suite** (unit and feature tests) against the isolated test database using the selected PHP binary, not only the tests related to the changed file. Run focused tests while debugging, but use the full suite as the milestone gate. Record test and assertion counts and investigate any failures against the last passing checkpoint; do not silently accept a reduced test count or skip a failing test.
+6. **Review coverage and dependencies.** Generate the configured coverage report using the same `app/` source set and record the result. The 80% target remains deferred by owner decision and is not a per-step blocker, but coverage must not be narrowed and changed/high-risk paths need focused regression tests. Run `composer audit --locked --no-dev`; record each advisory and its disposition. An audit command that exits nonzero because advisories remain is not a pass, and unresolved critical/high advisories block public staging/deployment.
+7. **Manually smoke-test the application locally.** Use the checklist below with synthetic accounts/data and sandboxed or fake external services. Verify both successful and expected-denial/error behavior. Do not send real mail or payments.
+8. **Inspect and record evidence.** Check Laravel logs, browser console/network errors, scheduled-command output, and the test database for unexpected errors or data changes. Record versions, commit, exact commands, test counts, coverage, audit result, manual pass/fail items, and any open blocker in the phase checkpoint.
+9. **Pass or stop.** If any required automated check or manual workflow fails, stop at this version, fix it, and rerun the full cycle. Once all checks pass and blockers are dispositioned, commit the clean checkpoint before moving to the next Laravel/PHP milestone.
+
+#### Manual regression checklist for each milestone
+
+- **Authentication and roles:** Offer, Receive, Partner, and Admin login; MFA success and failure/expiry; logout; password reset; access allowed for the correct role and denied for the others.
+- **Core business workflows:** profile/onboarding; offer/receive marketplace; bid creation, responses, and state changes; opportunity/vouch lifecycle; cart, wishlist, and checkout; partner offer management; support ticket access and updates; admin account and status operations.
+- **Money and records:** sandbox/fake payment success, cancellation, failure, and callback/IPN handling; verify amounts, ownership, idempotency, invoices, wallet balances, and reconciliation records.
+- **Files and communications:** synthetic spreadsheet import/export, PDF/receipt output, upload/download and storage visibility, and email/MFA delivery through a test mail driver.
+- **Background work:** invoke scheduled commands in the test environment and verify expected records/status transitions without triggering production endpoints or external side effects.
+- **Presentation and diagnostics:** load key public, user, partner, and admin pages; check browser console/network responses; confirm no new Laravel/PHP errors or unexpected database writes.
+
+**Milestone gate:** The application installs and runs under the milestone's intended PHP runtime; Composer validation and platform checks pass; the full PHPUnit suite passes; the manual regression checklist passes or has a documented owner-approved deferral; coverage and audit results are recorded; and the checkpoint is committed on the isolated upgrade branch. The final Laravel 13/PHP 8.5 milestone must also be tested under that exact runtime before it is considered compatible.
 
 **Phase 4 checkpoint (2026-10-17):** Work is on `phase4_upgrades`, based on `main` at `4f8c202`. The first framework increment is complete locally: Laravel 5.6.40 → 5.7.29, using the official [Laravel 5.7 upgrade guide](https://laravel.com/docs/5.7/upgrade). The custom user password-reset handler now passes the request to Laravel's updated reset-response method, and the Laravel 5.7 cache `.gitignore` layout is in place. The full PHP 7.4.33 suite passes (**161 tests, 786 assertions**) and the updated lock passes PHP 7.4 platform checks.
 
@@ -154,6 +223,12 @@ No feature is considered optional solely because its dependency is old or diffic
 - `composer audit --locked --no-dev` now reports **77 advisories across 13 production packages** (7 critical, 23 high, 42 medium, 5 low); the advisory matrix records the current lock. Composer's `--no-blocking` was used only for the local dependency resolution because Carbon 1 remains advisory-flagged; no persistent bypass or risk acceptance was added.
 - Carbon remains at 1.39.1 to avoid combining the Carbon 2 migration with this Laravel step. Cache TTL/lock API searches found no application call sites requiring changes for the 5.8 cache behavior update.
 - **Follow-up complete in the working tree (2026-10-17):** the signup foreign-key failure was caused by active user, half-registration, and partner registration paths omitting `user_type`. They now assign the lowest configured user type, matching the existing admin-import behavior, and return an explicit error if none is configured. Regression tests cover successful creation and the assigned type across all three flows. The full suite now passes (**169 tests, 814 assertions**).
+
+**Third Phase 4 checkpoint (2026-10-18, local only):** The current checkout is on `phase4_upgradev1`, based on `main` at `ff9e7d4` (starting branch commit `00a061e`). Laravel is upgraded from 5.8.38 to stable Laravel 6.20.44 on PHP 7.4.33. AdminLTE moved from 1.27.2 to its Laravel 6-compatible 2.0.2 release; Collision moved to 3.2.0, PHPUnit to 8.5.56, and Carbon to 2.73.0. Removed Laravel string helpers were replaced with `Illuminate\Support\Str` calls in application code, configuration, and the user factory. The obsolete manually registered AdminLTE provider was removed so Laravel's package discovery loads the provider declared by AdminLTE 2.
+
+- The Laravel 5.8 baseline passed **169 tests, 814 assertions**. On Laravel 6.20.44/PHP 7.4.33, the full suite still passes (**169 tests, 814 assertions**); `composer validate`, `composer check-platform-reqs`, `php artisan route:list --path=controlpanel`, and Blade `view:cache` also pass. The first coverage run exceeded PHP's default 128 MB memory limit; rerunning with a process-local 512 MB limit passed and reports **34.54% line coverage (2,756/7,980)**. The 80% target remains deferred.
+- Composer's security policy blocked stable Laravel 6 because that historical release has known advisories. A single command-scoped `--no-blocking` was used to resolve the exact stable Laravel 6.20.44 dependency update locally; no Composer/global policy setting was changed and no advisory risk was accepted. `composer audit --locked --no-dev` exits nonzero and reports **82 advisories across 13 production packages** (6 critical, 29 high, 42 medium, 5 low). The [dependency advisory matrix](dependency_advisory_review.csv) has been refreshed to match this Laravel 6 lock. These findings block any public staging/deployment.
+- **Manual regression checklist not yet completed.** Route registration and Blade compilation are boot/render smoke checks, not substitutes for clicking through the four login/MFA flows, core business workflows, payment sandbox cases, and admin/partner pages. Complete and record the manual checklist above before proceeding to Laravel 7. No database schema changes or production changes were made.
 
 ## Phase 5: Database compatibility
 
@@ -177,6 +252,18 @@ No feature is considered optional solely because its dependency is old or diffic
 
 **Hostinger manual test checkpoint (2026-10-17):** Hostinger fetched `main` at `b1b6e89` and completed file publishing to `public_html`. Composer's `post-autoload-dump` failed because `AppServiceProvider` queried `buttons_setting` during application bootstrap while the Hostinger database connection was denied; Hostinger retried with `--no-scripts`, so publishing did not verify that Laravel boots. The follow-up defers that query until a view needs it, allowing package discovery without a database connection. Hostinger's database host/credentials/permissions still need correction before application pages can work. Keep the project source outside the web root where possible; `public_html` should expose only Laravel's `public/` files.
 
+**Production deployment update (2026-10-18, owner-confirmed):** The application is deployed on Hostinger production using PHP 7.4 and the legacy Laravel version. The owner confirms production has been validated and is working. This supersedes the earlier incomplete file-publishing attempt as the current deployment status. The exact deployed commit and Laravel version have not yet been recorded.
+
+**Production baseline record:**
+
+| Check | Result / evidence |
+|---|---|
+| Environment | Production (owner-confirmed) |
+| Deployment health | Validated and working (owner-confirmed) |
+| Deployed commit and Laravel version | Exact versions/commit not yet recorded |
+| Web PHP version | PHP 7.4 (owner-confirmed) |
+| CLI/Composer PHP and database product/version | Not yet recorded |
+
 ## Phase 7: Production cutover and maintenance
 
 1. Schedule a maintenance window and take verified pre-deployment file/database backups.
@@ -187,11 +274,11 @@ No feature is considered optional solely because its dependency is old or diffic
 
 ## Immediate next actions
 
-1. Keep the 80% coverage target deferred, not passed; run the full PHPUnit suite and focused regression tests for changed code while coverage expansion is paused.
-2. **Complete:** Addressed the Phase 3 fixed-MFA and plaintext-password session blockers with short-lived challenges and focused authentication regression tests. Local schema and application regression checks pass; production mail/MFA verification remains outstanding.
-3. Before production validation, apply the additive migration through the approved deployment process and configure the production mail transport and admin-managed demo inbox/account list. The critical/high Composer advisories have been inventoried package by package in `KB/dependency_advisory_review.csv`; remediation or explicit approved-risk decisions remain outstanding.
-4. Finish and obtain approval for the workflow inventory, including remaining guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and the public operational/storage endpoints.
-5. **In progress:** Local framework upgrades have reached Laravel 5.8 on PHP 7.4. Continue one version step at a time and preserve the PHP 7.4 baseline until the framework and dependency graph support PHP 8.5; inventory approval, advisory disposition, and production checks remain gates before staging.
+1. **Now:** Complete and record the manual Laravel 6 regression checklist on `phase4_upgradev1`; keep `main` and Hostinger production unchanged.
+2. **Next coding step:** After the Laravel 6 manual checks pass, upgrade Laravel 6 to Laravel 7 locally, following the official guide and the repeatable upgrade/verification cycle above. Run the full PHPUnit suite and manual regression checklist, Composer platform checks, and Composer audit; record outcomes before proceeding to Laravel 8.
+3. Continue major-by-major locally, moving the PHP runtime forward when required by Laravel and its dependencies. Do not bypass platform requirements. Target Laravel 13/PHP 8.5; do not deploy until the branch is tested and a separate deployment decision is made.
+4. Before any upgraded code is exposed publicly, confirm the tested MFA fixes are included, configure and verify production mail/MFA, and remediate the critical/high Composer advisories or obtain explicit approved-risk decisions. Apply the additive migration only through the approved, backed-up deployment process.
+5. Finish and obtain approval for the workflow inventory, including remaining guard/role boundaries, legacy table mappings, payment integrations, scheduled tasks, and public operational/storage endpoints. Keep the 80% coverage target deferred, not passed; continue the full PHPUnit suite and add focused regression tests for changed code.
 
 ## Explicitly out of scope until approved
 

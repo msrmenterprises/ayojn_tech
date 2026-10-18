@@ -16,6 +16,7 @@ use App\Vouche;
 use App\VouchUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 use Mail;
@@ -371,6 +372,14 @@ class OppertunityController extends Controller
         $getSamehashTag = Opportunity::where('hashtag', '#' . $hashTags)->where('industry_id', $request->opportunity_industry)->first();
         if (empty($existHashTags)) 
         {
+            $send_data = array('amount' => $request->amount);
+            $result = $this->sendRequest($send_data);
+            if (isset($result['error'])) {
+                return redirect()->back()
+                    ->with('error_contact', 'The payment gateway is temporarily unavailable. Please try again.')
+                    ->withInput();
+            }
+
             $data = [
                 'receiver_id' => Auth::user()->id,
                 'hashtag' => "#" . preg_replace("/[^a-zA-Z0-9\s]/", "",str_replace(' ', '', $request->hashtags)),
@@ -396,10 +405,6 @@ class OppertunityController extends Controller
             }
 
 
-            //for xsquare payment 
-            $send_data = array('amount' => $request->amount);
-            $result = $this->sendRequest($send_data);
-
             $percentage = CommonHelper::getConfig('build_hashtag')['ayojn_service'];
             $config_type = CommonHelper::getConfig('build_hashtag')['config_type'];
             $ayojanEarnings = CommonHelper::calculateAyojanEarning($config_type,0,$percentage);
@@ -418,12 +423,6 @@ class OppertunityController extends Controller
             );
 
             $rstorder = DB::table('direct_payment')->insert($data);
-
-            if (isset($result['error'])) {
-                // echo "<div style='color:red'>";
-                 echo "Error: " . htmlspecialchars($result['error']);
-                // echo "</div>";
-             }
           
             header("Window-target: _parent");
             header('Location:'.$result['response']['details']['payment_url']);
@@ -518,9 +517,11 @@ class OppertunityController extends Controller
         ];
     }
 
-    public function sendRequest($data) {
+    public function sendRequest($data)
+    {
+        $ch = false;
+
         try {
-           
             $data_array = array(
                 'first_name'=> 'Ayojn',
                 'last_name'=> 'Company',
@@ -534,13 +535,14 @@ class OppertunityController extends Controller
 
             $signatureData = $this->generateSignature($data_array);
 
-            //$signatureData = $this->generateSignature($this->formData);
-
             $ch = curl_init($this->apiConfig['ENDPOINT']);
+            if ($ch === false) {
+                throw new \RuntimeException('Unable to initialize the payment request.');
+            }
+
             $customerId = config('sitevars.xsquare_local.x-customer-id');
             $customerId = is_numeric($customerId) ? (int)$customerId : 0;
 
-            
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data_array));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -554,27 +556,49 @@ class OppertunityController extends Controller
             ]);
 
             $response = curl_exec($ch);
-            
+
             if (curl_errno($ch)) {
-                throw new Exception('cURL error: ' . curl_error($ch));
+                throw new \RuntimeException('cURL error: ' . curl_error($ch));
             }
 
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $decodedResponse = json_decode($response, true);
 
-            curl_close($ch);
+            if ($httpCode < 200 || $httpCode >= 300 ||
+                !isset(
+                    $decodedResponse['details']['collection_id'],
+                    $decodedResponse['details']['order_reference'],
+                    $decodedResponse['details']['payment_url']
+                )) {
+                throw new \RuntimeException('The payment gateway returned an invalid response.');
+            }
 
             return [
                 'status' => $httpCode,
-                'response' => json_decode($response, true),
+                'response' => $decodedResponse,
                 'debug' => [
                     'payload' => $data_array,
                     'signature' => $signatureData
                 ]
             ];
+        } catch (\Exception $e) {
+            Log::error('Xsquare payment request failed: ' . $e->getMessage());
 
-        } catch (Exception $e) {
-            return ['error' => $e->getMessage()];
+            return ['error' => 'The payment gateway is temporarily unavailable.'];
+        } finally {
+            if ($ch !== false) {
+                curl_close($ch);
+            }
         }
+    }
+
+    private function paymentGatewayErrorResponse()
+    {
+        return response()->json([
+            'flag' => 0,
+            'link' => '',
+            'error' => 'The payment gateway is temporarily unavailable. Please try again.',
+        ], 502);
     }
 
 
@@ -606,7 +630,9 @@ class OppertunityController extends Controller
 
                 $send_data = array('amount' => $amt);
                 $result = $this->sendRequest($send_data);
-
+                if (isset($result['error'])) {
+                    return $this->paymentGatewayErrorResponse();
+                }
 
                 $percentage = CommonHelper::getConfig('hashtag_vouch')['ayojn_service'];
                 $config_type = CommonHelper::getConfig('hashtag_vouch')['config_type'];
@@ -626,12 +652,6 @@ class OppertunityController extends Controller
                 );
     
                 $rstorder = DB::table('direct_payment')->insert($data);
-    
-                if (isset($result['error'])) {
-                    // echo "<div style='color:red'>";
-                     echo "Error: " . htmlspecialchars($result['error']);
-                    // echo "</div>";
-                 }
               
                  $link = $result['response']['details']['payment_url'];
                  return array('flag'=>$flag, 'link' => $link);
@@ -677,6 +697,20 @@ class OppertunityController extends Controller
         $getSamehashTag = Opportunity::where('hashtag', '#' . $hashTags)->where('industry_id', $request->opportunity_industry)->first();
         if (empty($existHashTags)) 
         {
+            $wallet = $request->wallet;
+            $userid = Auth::user()->id;
+            $amt = $request->amount;
+            $voucher_code = $request->voucher_code;
+            $flag = 0;
+
+            if ($amt > 0) {
+                $send_data = array('amount' => $request->amount);
+                $result = $this->sendRequest($send_data);
+                if (isset($result['error'])) {
+                    return $this->paymentGatewayErrorResponse();
+                }
+            }
+
             $data = [
                 'receiver_id' => Auth::user()->id,
                 'hashtag' => "#" . preg_replace("/[^a-zA-Z0-9\s]/", "",str_replace(' ', '', $request->hashtags)),
@@ -703,22 +737,7 @@ class OppertunityController extends Controller
             }
 
 
-            $wallet = $request->wallet;
-
-            $userid = Auth::user()->id;
-
-            $amt = $request->amount;
-
-            $voucher_code = $request->voucher_code;
-        
-            $flag = 0;
-           
             if($amt > 0){
-
-            //for xsquare payment 
-            $send_data = array('amount' => $request->amount);
-            $result = $this->sendRequest($send_data);
-
 
             $percentage = CommonHelper::getConfig('build_hashtag')['ayojn_service'];
             $config_type = CommonHelper::getConfig('build_hashtag')['config_type'];
@@ -756,15 +775,9 @@ class OppertunityController extends Controller
                 $flag =1;
             }
 
-            if (isset($result['error'])) {
-                // echo "<div style='color:red'>";
-                echo "Error: " . htmlspecialchars($result['error']);
-                // echo "</div>";
-            }
-        
             $link = $result['response']['details']['payment_url'];
             return array('flag'=>$flag, 'link' => $link);
-             
+
             }else{
 
 
@@ -851,6 +864,9 @@ class OppertunityController extends Controller
             //for xsquare payment 
             $send_data = array('amount' => $request->amount);
             $result = $this->sendRequest($send_data);
+            if (isset($result['error'])) {
+                return $this->paymentGatewayErrorResponse();
+            }
 
             $percentage = CommonHelper::getConfig('build_hashtag_renew')['ayojn_service'];
             $config_type = CommonHelper::getConfig('build_hashtag_renew')['config_type'];
@@ -888,12 +904,6 @@ class OppertunityController extends Controller
                 $flag =1;
             }
 
-            if (isset($result['error'])) {
-                // echo "<div style='color:red'>";
-                echo "Error: " . htmlspecialchars($result['error']);
-                // echo "</div>";
-            }
-        
             $link = $result['response']['details']['payment_url'];
             return array('flag'=>$flag, 'link' => $link);
              

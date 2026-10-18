@@ -11,6 +11,7 @@ use App\WalletLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Srmklive\PayPal\Services\ExpressCheckout;
 
 class PaypalController extends Controller
@@ -90,7 +91,7 @@ class PaypalController extends Controller
         ];
 
         $data['return_url'] = url('/paypal/ec-checkout-success');
-        $dataId = str_random(6);
+        $dataId = Str::random(6);
         $data['invoice_id'] = config('paypal.invoice_prefix')  . $order_id . '_opportunity_' . $dataId;
         $data['opportunity_id'] = session('opportunity_id');
         $data['invoice_description'] = "Order #$order_id Invoice . $order_id . '_opportunity_' . $dataId";

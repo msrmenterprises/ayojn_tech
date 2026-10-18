@@ -638,7 +638,6 @@ class BidController extends Controller
         $avalible_qty = $offer->qty;
 
         $cart_chk = DB::table('cart')->where('user_id', Auth::user()->id)->where('id',$id)->first();
-        $cart_qty = $cart_chk->quantity??0;
 
         if($avalible_qty == 0){
             return redirect()->back()->with('error', 'Product quantity is not available or out of stock!');
@@ -688,7 +687,6 @@ class BidController extends Controller
         }else{$dealamount = 0; }
         
         $cart_chk = DB::table('cart')->where('user_id', Auth::user()->id)->where('id',$id)->first();
-        $cart_qty = $cart_chk->quantity??0;
 
         $cart_id = DB::table('wishlist')->where('user_id', Auth::user()->id)->where('id',$id)->value('cart_id');
 
@@ -866,8 +864,7 @@ class BidController extends Controller
         
         $avalible_qty = $offer->qty;
 
-        $cart_chk = DB::table('cart')->where('user_id', Auth::user()->id)->where('id',$id)->first();
-        $cart_qty = $cart_chk->quantity??0;
+        $wishlist_chk = DB::table('wishlist')->where('user_id', Auth::user()->id)->where('id',$id)->first();
 
         if($avalible_qty == 0){
             return redirect()->back()->with('error', 'Product quantity is not available or out of stock!');
@@ -876,10 +873,10 @@ class BidController extends Controller
 
 
         
-        if(isset($cart_chk)) {
-            $cart_chk->quantity++;
-            DB::table('wishlist')->where('id', $cart_chk->id)->update(['quantity' => $cart_chk->quantity]);
-            DB::table('offers')->where('id', $cart_chk->id)->update(['qty' => DB::raw("qty - 1")]);
+        if(isset($wishlist_chk)) {
+            $wishlist_chk->quantity++;
+            DB::table('wishlist')->where('cart_id', $wishlist_chk->cart_id)->update(['quantity' => $wishlist_chk->quantity]);
+            DB::table('offers')->where('id', $offer->id)->update(['qty' => DB::raw("qty - 1")]);
         }  else {
             $cart[$id] = [
                 "id" => $offer->id,
@@ -911,7 +908,7 @@ class BidController extends Controller
        
         $carts = DB::table('cart')->where('user_id', Auth::user()->id)->get();
         $cart_details = json_decode(json_encode($carts), true);
-         if($carts)
+         if($carts->isNotEmpty())
          {
             if($request->post('btn_name') == "free")
             {
@@ -976,12 +973,42 @@ class BidController extends Controller
             $result = $this->sendRequest($send_data);
 
             if (isset($result['error'])) {
-                // echo "<div style='color:red'>";
-                 echo "Error: " . htmlspecialchars($result['error']);
-                // echo "</div>";
-             } else {
+                \Illuminate\Support\Facades\Log::error(
+                    'Marketplace checkout gateway request failed.',
+                    ['user_id' => Auth::id(), 'error' => $result['error']]
+                );
 
+                return redirect()->back()
+                    ->with('error', 'The payment gateway is temporarily unavailable. Please try again.')
+                    ->withInput();
+            }
 
+            $paymentDetails = isset($result['response']['details']) && is_array($result['response']['details'])
+                ? $result['response']['details']
+                : null;
+            if (
+                ! isset($result['status']) ||
+                $result['status'] < 200 ||
+                $result['status'] >= 300 ||
+                ! is_array($paymentDetails) ||
+                ! isset(
+                    $paymentDetails['collection_id'],
+                    $paymentDetails['order_reference'],
+                    $paymentDetails['payment_url']
+                )
+            ) {
+                \Illuminate\Support\Facades\Log::error(
+                    'Marketplace checkout gateway returned an invalid response.',
+                    [
+                        'user_id' => Auth::id(),
+                        'status' => isset($result['status']) ? $result['status'] : null,
+                    ]
+                );
+
+                return redirect()->back()
+                    ->with('error', 'The payment gateway is temporarily unavailable. Please try again.')
+                    ->withInput();
+            }
 
                     $pay_hidden = $request->post('pay_hidden');
                     $usewallet = $request->post('walletamt_hidden');
@@ -1016,11 +1043,11 @@ class BidController extends Controller
                         $data = array(
                             'user_id'=> Auth::user()->id, 
                             'beneficiary_id' => 7,
-                            'collection_id'=> $result['response']['details']['collection_id'], 
+                            'collection_id'=> $paymentDetails['collection_id'],
                             'purpose' => 1,
                             'amount'=> $request->post('paidamt_hidden'),
                             'ayojn_earn' => $ayojanEarnings,
-                            'transaction_reference' => $result['response']['details']['order_reference'],
+                            'transaction_reference' => $paymentDetails['order_reference'],
                             'form_name' => 'marketplace_payment',
                             'refrence_id' => $rstorder,
                             'refrence_details' => json_encode(array('vouch_code'=>$voucher_code, 'wallet' => $wallet_use, 'marketplace_id' => $rstorder))
@@ -1030,15 +1057,13 @@ class BidController extends Controller
                        // return view('user.cart',array('rstorder'=>$rstorder));
             
                     }
-                  
-
                 //   echo "<pre>";
+                //   print_r($result['response']);
+                //   die;
                 //   print_r($result['response']); 
                 //   die;
-                 header("Window-target: _parent");
-                 header('Location:'.$result['response']['details']['payment_url']);
-                 exit;
-             }
+            return redirect()->away($paymentDetails['payment_url'])
+                ->header('Window-target', '_parent');
                 
             }
 

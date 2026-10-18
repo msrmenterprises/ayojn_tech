@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Offer;
 use App\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,83 @@ class MarketplaceHistoryWorkflowTest extends TestCase
         $this->actingAs($user, 'web')
             ->get('/marketplace-history')
             ->assertStatus(200);
+    }
+
+    public function test_marketplace_history_renders_order_statuses_cancellation_and_payment_state()
+    {
+        $user = User::findOrFail($this->createUser('marketplace-history-order@example.test', 1));
+        $partnerId = $this->createUser('marketplace-history-partner@example.test', 3);
+        $offer = Offer::create([
+            'partner_id' => $partnerId,
+            'offer_for' => 'Both',
+            'offerred_by' => 'Synthetic Partner',
+            'identity' => 'Synthetic History Category',
+            'function' => 1,
+            'title' => 'Synthetic History Offer',
+            'available_in' => 'ZZ',
+            'currency' => 'USD',
+            'qty' => 5,
+            'status' => 'On',
+            'admin_status' => 1,
+            'weblink' => 'https://example.test/history-offer',
+            'notification_email' => 'partner@example.test',
+            'refund' => 1,
+        ]);
+        $orderId = DB::table('offers_order')->insertGetId([
+            'user_id' => $user->id,
+            'pay_amt' => 30,
+            'wallet' => 0,
+            'total_amt' => 30,
+        ]);
+        DB::table('direct_payment')->insert([
+            'user_id' => $user->id,
+            'collection_id' => 'SYNTHETIC-HISTORY-COLLECTION',
+            'purpose' => 1,
+            'amount' => 30,
+            'ayojn_earn' => 1,
+            'transaction_reference' => 'SYNTHETIC-HISTORY-REFERENCE',
+            'form_name' => 'marketplace_payment',
+            'refrence_id' => $orderId,
+            'status_desc' => 'Payment completed',
+        ]);
+
+        foreach (range(0, 5) as $status) {
+            DB::table('offers_order_item')->insert([
+                'order_id' => $orderId,
+                'offer_id' => $offer->id,
+                'offer_amt' => 10,
+                'qty' => 1,
+                'final_amt' => $status === 5 ? 0 : 10,
+                'status' => $status,
+                'created_at' => now()->subDay()->toDateTimeString(),
+            ]);
+        }
+        DB::table('offers_order_item')->insert([
+            'order_id' => $orderId,
+            'offer_id' => $offer->id,
+            'offer_amt' => 10,
+            'qty' => 1,
+            'final_amt' => 10,
+            'status' => 2,
+            'cancel_status' => 1,
+            'cancel_date' => '2026-10-18 00:00:00',
+            'cancel_reason' => 'Synthetic cancellation reason',
+            'created_at' => now()->subDays(20)->toDateTimeString(),
+        ]);
+
+        $this->actingAs($user, 'web')
+            ->get('/marketplace-history')
+            ->assertOk()
+            ->assertSee('Synthetic History Offer')
+            ->assertSee('Payment completed')
+            ->assertSee('Pending')
+            ->assertSee('Progress')
+            ->assertSee('Query')
+            ->assertSee('Feedback')
+            ->assertSee('Free')
+            ->assertSee('Cancel')
+            ->assertSee('Cancel Date:')
+            ->assertSee('Synthetic cancellation reason');
     }
 
     public function test_wallet_history_formats_synthetic_voucher_entries()
@@ -162,5 +240,82 @@ class MarketplaceHistoryWorkflowTest extends TestCase
             'cancel_reason' => 'Synthetic cancellation',
         ]);
         $this->assertSame(25, (int) DB::table('users')->where('id', $user->id)->value('wallet_balance'));
+    }
+
+    public function test_cancelling_a_marketplace_item_releases_its_voucher()
+    {
+        $user = User::findOrFail($this->createUser('marketplace-voucher-cancel@example.test', 1));
+        $voucherCode = 'SYNTHETIC-MARKETPLACE-CANCEL';
+        DB::table('vouch_codes')->insert([
+            'vouch_code' => $voucherCode,
+            'vouch_amount' => 15,
+            'expeiry_date' => '2035-01-01',
+            'used_by' => $user->id,
+            'status' => 1,
+        ]);
+        $orderId = 987655;
+        $itemId = DB::table('offers_order_item')->insertGetId([
+            'order_id' => $orderId,
+            'offer_id' => 987655,
+            'offer_amt' => 15,
+            'qty' => 1,
+            'final_amt' => 15,
+            'status' => 2,
+        ]);
+        DB::table('direct_payment')->insert([
+            'user_id' => $user->id,
+            'collection_id' => 'synthetic-voucher-collection',
+            'purpose' => 1,
+            'amount' => 15,
+            'ayojn_earn' => 0,
+            'refrence_id' => $orderId,
+            'refrence_details' => json_encode(['wallet' => 0, 'vouch_code' => $voucherCode]),
+            'form_name' => 'marketplace_payment',
+        ]);
+
+        $this->actingAs($user, 'web')
+            ->post('/cancel-offer-user', [
+                'coffer_item_id' => $itemId,
+                'cancel_reason' => 'Synthetic voucher cancellation',
+            ])
+            ->assertRedirect(route('marketplace-history'));
+
+        $this->assertDatabaseHas('vouch_codes', [
+            'vouch_code' => $voucherCode,
+            'used_by' => 0,
+            'status' => 0,
+        ]);
+    }
+
+    public function test_show_payment_returns_only_completed_marketplace_items()
+    {
+        $user = User::findOrFail($this->createUser('marketplace-show-payment@example.test', 1));
+        $completedId = DB::table('offers_order_item')->insertGetId([
+            'order_id' => 900001,
+            'offer_id' => 900001,
+            'offer_amt' => 25,
+            'qty' => 1,
+            'final_amt' => 25,
+            'status' => 5,
+        ]);
+        DB::table('offers_order_item')->insert([
+            'order_id' => 900001,
+            'offer_id' => 900002,
+            'offer_amt' => 15,
+            'qty' => 1,
+            'final_amt' => 15,
+            'status' => 4,
+        ]);
+
+        $this->actingAs($user, 'web');
+        ob_start();
+        $response = $this->postJson('/show-payment', ['id' => $completedId]);
+        $output = ob_get_clean();
+        $response->assertOk();
+        $items = json_decode($output, true);
+
+        $this->assertCount(1, $items);
+        $this->assertSame($completedId, (int) $items[0]['id']);
+        $this->assertSame(5, (int) $items[0]['status']);
     }
 }
