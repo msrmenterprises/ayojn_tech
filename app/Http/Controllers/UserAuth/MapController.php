@@ -148,7 +148,7 @@ class MapController extends Controller
                 } elseif ($user->sponsor_budget == "Above 20000") {
                     $KnowledgePoolabovetwo = $KnowledgePoolabovetwo + 1;
                 }
-                $ThinkTankUser = $ThinkTankUser + 1;
+                $KnowledgePoolUser = $KnowledgePoolUser + 1;
             } else if ($user->sponsor_for == "Online Events") {
                 if ($user->sponsor_budget == "Less than 2000") {
                     $OnlineEventslesstwo = $OnlineEventslesstwo + 1;
@@ -691,7 +691,7 @@ class MapController extends Controller
             ->where('country', $country_code)->where('userstatus', 1)->get()->count();
         $PerformTotalUsers = User::where('sponsor_for', 'Performing Arts')->where('sponsor_type', $sponsor_type)
             ->where('country', $country_code)->where('userstatus', 1)->get()->count();
-        $ThinkTankTotalUsers = User::where('sponsor_for', 'ThinkTank')->where('sponsor_type', $sponsor_type)
+        $ThinkTankTotalUsers = User::where('sponsor_for', 'Think Tank')->where('sponsor_type', $sponsor_type)
             ->where('country', $country_code)->where('userstatus', 1)->get()->count();
         $KnowledgePoolTotalUsers = User::where('sponsor_for', 'Knowledge Pool')->where('sponsor_type', $sponsor_type)
             ->where('country', $country_code)->where('userstatus', 1)->get()->count();
